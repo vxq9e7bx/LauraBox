@@ -1,3 +1,4 @@
+#include <thread>
 #include "Arduino.h"
 #include "WiFi.h"
 #include "src/Audio.h"
@@ -7,7 +8,7 @@
 
 #include "src/MFRC522.h"
 
-// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI settings.
+// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
 //String ssid =     "****";
 //String password = "****";
 #include "wifi-key.h"
@@ -33,8 +34,18 @@
 Audio audio;
 MFRC522 nfc(HSPI, NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST);
 SPIClass sdspi(VSPI);
+
+std::thread audioLoop;
+
+bool isPlaying{false};
+size_t failCount{0};
+std::vector<String> playlist;
+size_t track{0};
  
 void setup() {
+    disableCore0WDT();
+    disableCore1WDT();
+    
     pinMode(SD_CS, OUTPUT);
     
     digitalWrite(SD_CS, HIGH);
@@ -46,7 +57,7 @@ void setup() {
     Serial.println("Looking for MFRC522.");
     nfc.begin();
     byte version = nfc.getFirmwareVersion();
-    if (! version) {
+    if(!version || version == 0xFF) {
       Serial.print("Didn't find MFRC522 board.");
       while(1); //halt
     }
@@ -55,51 +66,78 @@ void setup() {
     Serial.print(version, HEX);
     Serial.println(".");
 
-    //WiFi.mode(WIFI_OFF);
+}
+
+void voiceError(String error) {
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), password.c_str());
-    while (WiFi.status() != WL_CONNECTED) delay(1500);
-
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(5); // 0...21
-
-    audio.connecttoSD("/03_Bach_BWV1052_Allegro.mp3");
-    //audio.connecttohost("http://www.ndr.de/resources/metadaten/audio/m3u/ndrkultur.m3u");
-//    audio.connecttohost("http://macslons-irish-pub-radio.com/media.asx");
-//    audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.aac"); //  128k aac
-//      audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.mp3"); //  128k mp3
-    //audio.connecttospeech("Wenn die Hunde schlafen, kann der Wolf gut Schafe stehlen.", "de");
-//    audio.connecttohost("http://media.ndr.de/download/podcasts/podcast4161/AU-20190404-0844-1700.mp3"); // podcast
+    while(WiFi.status() != WL_CONNECTED) delay(1500);
+    
+    audio.connecttospeech(error+" h.", "DE");
+    while(1) audio.loop(); //halt
 }
 
-void loop()
-{
-    audio.loop();
 
+void loop() {
+
+    // RFID tag was already found, so play music
+    if(isPlaying) {
+      audio.loop();
+      // check if music has stopped: play next track in list, or shut down if end of list
+      if(audio.getAudioFileDuration() == 0) {
+        ++track;
+        if(track >= playlist.size()) {
+          while(1);  //halt
+        }
+        audio.connecttoSD(playlist[track]);
+        // wait until audio is really playing
+        while(audio.getAudioFileDuration() == 0) audio.loop();
+      }
+      return;
+    }
+    
     // Wait for RFID tag
     byte data[MAX_LEN];
     auto status = nfc.requestTag(MF1_REQIDL, data);
   
     if(status == MI_OK) {
-      Serial.println("Tag detected.");
-      Serial.print("Type: ");
-      Serial.print(data[0], HEX);
-      Serial.print(", ");
-      Serial.println(data[1], HEX);
-  
-      // calculate the anti-collision value for the currently detected
-      // tag and write the serial into the data array.
+      failCount = 0;
+      // read serial
       status = nfc.antiCollision(data);
-      byte serial[5];
-      memcpy(serial, data, 5);
-  
-      Serial.println("The serial nb of the tag is:");
-      for(size_t i = 0; i < 3; i++) {
-        Serial.print(serial[i], HEX);
-        Serial.print(", ");
+      byte serial[4];
+      memcpy(&serial, data, 4);
+      String id = String(serial[0],HEX) + String(serial[1],HEX) + String(serial[2],HEX) + String(serial[3],HEX);
+
+      Serial.print("Tag detected: ");
+      Serial.print(id);
+      Serial.println(".");
+      isPlaying = true;
+
+      audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+      audio.setVolume(2); // 0...21
+
+      auto f = SD.open("/"+id+".lst", FILE_READ);
+      if(!f) {
+        voiceError("Unbekannte Karte.");
       }
-      Serial.println(serial[3], HEX);
+      while(f.available()) {
+        playlist.push_back(f.readStringUntil('\n'));
+      }
+      f.close();
+
+      track = 0;
+      audio.connecttoSD(playlist[track]);
+
+      // wait until audio is really playing
+      while(audio.getAudioFileDuration() == 0) audio.loop();
+    }
+    else {
+      ++failCount;
+      delay(100);
+      if(failCount < 100) return;   // 10 seconds
+      Serial.println("No tag found.");
+      voiceError("Keine Karte gefunden.");
     }
 
 }
