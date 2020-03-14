@@ -1,24 +1,17 @@
-//**********************************************************************************************************
-//*    audioI2S-- I2S audiodecoder for ESP32,                                                              *
-//**********************************************************************************************************
-//
-// first release on 11/2018
-// Version 2  , Aug.05/2019
-//
-//
-// THE SOFTWARE IS PROVIDED "AS IS" FOR PRIVATE USE ONLY, IT IS NOT FOR COMMERCIAL USE IN WHOLE OR PART OR CONCEPT.
-// FOR PERSONAL USE IT IS SUPPLIED WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR
-// OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE
-//
-
 #include "Arduino.h"
-#include "WiFiMulti.h"
-#include "Audio.h"
-#include "SPI.h"
+#include "WiFi.h"
+#include "src/Audio.h"
 #include "SD.h"
 #include "FS.h"
+
+#define SIZE_BUFFER     18
+#define MAX_SIZE_BLOCK  16
+#include <MFRC522.h> //library responsible for communicating with the module RFID-RC522
+#include <SPI.h> //library responsible for communicating of SPI bus
+
+// Pins for RC522
+#define SS_PIN    21
+#define RST_PIN   22
 
 // Digital I/O used
 #define SD_CS          5
@@ -30,49 +23,78 @@
 #define I2S_LRC       26
 
 Audio audio;
-WiFiMulti wifiMulti;
-String ssid =     "xxxxx";
-String password = "xxxxx";
 
+//used in authentication
+MFRC522::MIFARE_Key key;
+//authentication return status code
+MFRC522::StatusCode status;
+// Defined pins to module RC522
+MFRC522 mfrc522(SS_PIN, RST_PIN); 
+
+#include "wifi-key.h"
+// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI settings.
+//String ssid =     "****";
+//String password = "****";
 
 void setup() {
-    pinMode(SD_CS, OUTPUT);      digitalWrite(SD_CS, HIGH);
-    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    SPI.setFrequency(1000000);
+    pinMode(SD_CS, OUTPUT);
+    
+    //digitalWrite(SD_CS, HIGH);
+    //SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+    SPI.begin();
     Serial.begin(115200);
-    SD.begin(SD_CS);
-    WiFi.mode(WIFI_STA);
-    wifiMulti.addAP(ssid.c_str(), password.c_str());
-    wifiMulti.run();
-    if(WiFi.status() != WL_CONNECTED){
-        WiFi.disconnect(true);
-        wifiMulti.run();
-    }
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(12); // 0...21
+    //SD.begin(SD_CS);
 
-//    audio.connecttoSD("/320k_test.mp3");
-//    audio.connecttohost("http://www.wdr.de/wdrlive/media/einslive.m3u");
+    // Init MFRC522
+    mfrc522.PCD_Init();
+
+    //WiFi.mode(WIFI_OFF);
+    WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), password.c_str());
+    while (WiFi.status() != WL_CONNECTED) delay(1500);
+
+    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+    audio.setVolume(5); // 0...21
+
+    //audio.connecttoSD("/03_Bach_BWV1052_Allegro.mp3");
+    //audio.connecttohost("http://www.ndr.de/resources/metadaten/audio/m3u/ndrkultur.m3u");
 //    audio.connecttohost("http://macslons-irish-pub-radio.com/media.asx");
 //    audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.aac"); //  128k aac
-      audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.mp3"); //  128k mp3
-//    audio.connecttospeech("Wenn die Hunde schlafen, kann der Wolf gut Schafe stehlen.", "de");
+//      audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.mp3"); //  128k mp3
+    //audio.connecttospeech("Wenn die Hunde schlafen, kann der Wolf gut Schafe stehlen.", "de");
+//    audio.connecttohost("http://media.ndr.de/download/podcasts/podcast4161/AU-20190404-0844-1700.mp3"); // podcast
 }
 
 void loop()
 {
-    audio.loop();
-    if(Serial.available()){ // put streamURL in serial monitor
-        audio.stopSong();
-        String r=Serial.readString(); r.trim();
-        if(r.length()>5) audio.connecttohost(r);
-        log_i("free heap=%i", ESP.getFreeHeap());
+    //audio.loop();
+    delay(500);
+
+    // waiting the card approach
+    if(!mfrc522.PICC_IsNewCardPresent()) {
+      return;
     }
+    // Select a card
+    if(!mfrc522.PICC_ReadCardSerial()) {
+      Serial.println("Error reading serial");
+      return;
+    }
+    unsigned long uid;
+    uid =  mfrc522.uid.uidByte[0] << 24;
+    uid += mfrc522.uid.uidByte[1] << 16;
+    uid += mfrc522.uid.uidByte[2] <<  8;
+    uid += mfrc522.uid.uidByte[3];
+    //mfrc522.PICC_HaltA(); // Stop reading
+    Serial.print("Card detected, UID: ");
+    Serial.println(uid);
+    // Dump debug info about the card; PICC_HaltA() is automatically called
+    mfrc522.PICC_DumpToSerial(&(mfrc522.uid));    
 }
 
 // optional
 void audio_info(const char *info){
-    Serial.print("info        "); Serial.println(info);
+    Serial.print("info        ");Serial.println(info);
 }
 void audio_id3data(const char *info){  //id3 metadata
     Serial.print("id3data     ");Serial.println(info);
@@ -104,9 +126,3 @@ void audio_lasthost(const char *info){  //stream URL played
 void audio_eof_speech(const char *info){
     Serial.print("eof_speech  ");Serial.println(info);
 }
-
-
-
-
-
-
