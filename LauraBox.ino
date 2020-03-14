@@ -3,50 +3,57 @@
 #include "src/Audio.h"
 #include "SD.h"
 #include "FS.h"
+#include <SPI.h>
 
-#define SIZE_BUFFER     18
-#define MAX_SIZE_BLOCK  16
-#include <MFRC522.h> //library responsible for communicating with the module RFID-RC522
-#include <SPI.h> //library responsible for communicating of SPI bus
+#include "src/MFRC522.h"
+
+// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI settings.
+//String ssid =     "****";
+//String password = "****";
+#include "wifi-key.h"
 
 // Pins for RC522
-#define SS_PIN    21
-#define RST_PIN   22
+#define NFC_SS        15
+#define NFC_RST       22
+#define NFC_MOSI      13
+#define NFC_MISO      12
+#define NFC_SCK       14
 
-// Digital I/O used
+// Pins for SD card
 #define SD_CS          5
 #define SPI_MOSI      23
 #define SPI_MISO      19
 #define SPI_SCK       18
+
+// Pins for I2S audio interface
 #define I2S_DOUT      25
 #define I2S_BCLK      27
 #define I2S_LRC       26
 
 Audio audio;
-
-//used in authentication
-MFRC522::MIFARE_Key key;
-//authentication return status code
-MFRC522::StatusCode status;
-// Defined pins to module RC522
-MFRC522 mfrc522(SS_PIN, RST_PIN); 
-
-#include "wifi-key.h"
-// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI settings.
-//String ssid =     "****";
-//String password = "****";
-
+MFRC522 nfc(HSPI, NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST);
+SPIClass sdspi(VSPI);
+ 
 void setup() {
     pinMode(SD_CS, OUTPUT);
     
-    //digitalWrite(SD_CS, HIGH);
-    //SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    SPI.begin();
+    digitalWrite(SD_CS, HIGH);
+    sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     Serial.begin(115200);
-    //SD.begin(SD_CS);
+    SD.begin(SD_CS);
 
-    // Init MFRC522
-    mfrc522.PCD_Init();
+    // Init MFRC522 and print firmware version
+    Serial.println("Looking for MFRC522.");
+    nfc.begin();
+    byte version = nfc.getFirmwareVersion();
+    if (! version) {
+      Serial.print("Didn't find MFRC522 board.");
+      while(1); //halt
+    }
+    Serial.print("Found chip MFRC522 ");
+    Serial.print("Firmware ver. 0x");
+    Serial.print(version, HEX);
+    Serial.println(".");
 
     //WiFi.mode(WIFI_OFF);
     WiFi.disconnect();
@@ -57,7 +64,7 @@ void setup() {
     audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     audio.setVolume(5); // 0...21
 
-    //audio.connecttoSD("/03_Bach_BWV1052_Allegro.mp3");
+    audio.connecttoSD("/03_Bach_BWV1052_Allegro.mp3");
     //audio.connecttohost("http://www.ndr.de/resources/metadaten/audio/m3u/ndrkultur.m3u");
 //    audio.connecttohost("http://macslons-irish-pub-radio.com/media.asx");
 //    audio.connecttohost("http://mp3.ffh.de/radioffh/hqlivestream.aac"); //  128k aac
@@ -68,28 +75,33 @@ void setup() {
 
 void loop()
 {
-    //audio.loop();
-    delay(500);
+    audio.loop();
 
-    // waiting the card approach
-    if(!mfrc522.PICC_IsNewCardPresent()) {
-      return;
+    // Wait for RFID tag
+    byte data[MAX_LEN];
+    auto status = nfc.requestTag(MF1_REQIDL, data);
+  
+    if(status == MI_OK) {
+      Serial.println("Tag detected.");
+      Serial.print("Type: ");
+      Serial.print(data[0], HEX);
+      Serial.print(", ");
+      Serial.println(data[1], HEX);
+  
+      // calculate the anti-collision value for the currently detected
+      // tag and write the serial into the data array.
+      status = nfc.antiCollision(data);
+      byte serial[5];
+      memcpy(serial, data, 5);
+  
+      Serial.println("The serial nb of the tag is:");
+      for(size_t i = 0; i < 3; i++) {
+        Serial.print(serial[i], HEX);
+        Serial.print(", ");
+      }
+      Serial.println(serial[3], HEX);
     }
-    // Select a card
-    if(!mfrc522.PICC_ReadCardSerial()) {
-      Serial.println("Error reading serial");
-      return;
-    }
-    unsigned long uid;
-    uid =  mfrc522.uid.uidByte[0] << 24;
-    uid += mfrc522.uid.uidByte[1] << 16;
-    uid += mfrc522.uid.uidByte[2] <<  8;
-    uid += mfrc522.uid.uidByte[3];
-    //mfrc522.PICC_HaltA(); // Stop reading
-    Serial.print("Card detected, UID: ");
-    Serial.println(uid);
-    // Dump debug info about the card; PICC_HaltA() is automatically called
-    mfrc522.PICC_DumpToSerial(&(mfrc522.uid));    
+
 }
 
 // optional

@@ -26,7 +26,11 @@
 
  */
 /**************************************************************************/
-MFRC522::MFRC522(int sad, int reset) {
+MFRC522::MFRC522(int iface, int sck, int miso, int mosi, int sad, int reset)
+: spi(iface)
+{
+  spi.begin(sck, miso, mosi, sad);
+
   _sad = sad;
   pinMode(_sad, OUTPUT);       // Set digital as OUTPUT to connect it to the RFID /ENABLE pin
   digitalWrite(_sad, HIGH);
@@ -51,8 +55,8 @@ void MFRC522::writeToRegister(byte addr, byte val) {
   digitalWrite(_sad, LOW);
 
   //Address format: 0XXXXXX0
-  SPI.transfer((addr<<1)&0x7E);
-  SPI.transfer(val);
+  spi.transfer((addr<<1)&0x7E);
+  spi.transfer(val);
 
   digitalWrite(_sad, HIGH);
 }
@@ -71,8 +75,8 @@ void MFRC522::writeToRegister(byte addr, byte val) {
 byte MFRC522::readFromRegister(byte addr) {
   byte val;
   digitalWrite(_sad, LOW);
-  SPI.transfer(((addr<<1)&0x7E) | 0x80);
-  val =SPI.transfer(0x00);
+  spi.transfer(((addr<<1)&0x7E) | 0x80);
+  val =spi.transfer(0x00);
   digitalWrite(_sad, HIGH);
   return val;
 }

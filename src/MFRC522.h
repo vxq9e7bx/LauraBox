@@ -122,7 +122,7 @@
 
 class MFRC522 {
  public:
-  MFRC522(int sad, int reset);
+  MFRC522(int iface, int sck, int miso, int mosi, int sad, int reset);
   void writeToRegister(byte addr, byte val);
   byte readFromRegister(byte addr);
   void setBitMask(byte addr, byte mask);
@@ -143,4 +143,5 @@ class MFRC522 {
 
  private:
   int _sad, _reset;
+  SPIClass spi;
 };
