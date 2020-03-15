@@ -13,6 +13,54 @@
 //String password = "****";
 #include "wifi-key.h"
 
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+struct Button;
+std::vector<Button*> buttonList;
+
+struct Button {
+    explicit Button(int pin)
+    : _pin(pin) {
+      buttonList.push_back(this);
+    }
+
+    void setup() {
+      pinMode(_pin, INPUT_PULLUP);
+    }
+
+    bool isCommandPending() {
+      portENTER_CRITICAL_ISR(&timerMux);
+      bool ret = _commandPending;
+      _commandPending = false;
+      portEXIT_CRITICAL_ISR(&timerMux);
+      return ret;
+    }
+
+    void onTimer() {
+      if(digitalRead(_pin) == HIGH) {
+        // button not pressed
+        _pressed = false;
+        return;
+      }
+
+      if(_pressed) {
+        ++_repeatCount;
+        if(_repeatCount < 50) return;
+      }
+      _repeatCount = 0;
+      _pressed = true;
+    
+      portENTER_CRITICAL_ISR(&timerMux);
+      _commandPending = true;
+      portEXIT_CRITICAL_ISR(&timerMux);
+    }
+
+  private:
+    int _pin;
+    bool _commandPending{false};
+    bool _pressed{false};
+    size_t _repeatCount{0};
+};
+
 // Pins for RC522
 #define NFC_SS        15
 #define NFC_RST       22
@@ -31,6 +79,13 @@
 #define I2S_BCLK      27
 #define I2S_LRC       26
 
+// Define push buttons (with pin numbers)
+Button volumeUp{32};
+Button volumeDown{33};
+Button trackNext{16};
+Button trackPrev{17};
+Button pausePlay{34};    // requires external pull up
+
 Audio audio;
 MFRC522 nfc(HSPI, NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST);
 SPIClass sdspi(VSPI);
@@ -41,19 +96,30 @@ bool isPlaying{false};
 size_t failCount{0};
 std::vector<String> playlist;
 size_t track{0};
- 
+
+hw_timer_t *timer{nullptr};
+
+
+bool doVolumeUp{false};
+bool doVolumeDown{false};
+size_t repeatCounter{0};
+size_t currentVolume{5};
+
+void IRAM_ATTR onTimer();
+
 void setup() {
-    disableCore0WDT();
-    disableCore1WDT();
-    
+    // disable watchdog (no longer necessary?)
+    //disableCore0WDT();
+    //disableCore1WDT();
+
+    // Setup SD card
     pinMode(SD_CS, OUTPUT);
-    
     digitalWrite(SD_CS, HIGH);
     sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     Serial.begin(115200);
     SD.begin(SD_CS);
 
-    // Init MFRC522 and print firmware version
+    // Setup MFRC522 and print firmware version
     Serial.println("Looking for MFRC522.");
     nfc.begin();
     byte version = nfc.getFirmwareVersion();
@@ -66,6 +132,16 @@ void setup() {
     Serial.print(version, HEX);
     Serial.println(".");
 
+    // Setup timer for scanning the input buttons
+    timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
+    timerAttachInterrupt(timer, &onTimer, true);
+    timerAlarmWrite(timer, 10000, true);  // alarm every 10000 microseconds -> 100 Hz
+    timerAlarmEnable(timer);
+
+    // Setup input pins for push buttons
+    for(auto b : buttonList) b->setup();
+
+    // Note: we initialise the I2S audio interface only when the music starts, because it interferes with the RFID interface (unclear why and how)
 }
 
 void voiceError(String error) {
@@ -78,22 +154,29 @@ void voiceError(String error) {
     while(1) audio.loop(); //halt
 }
 
+void IRAM_ATTR onTimer() {
+    for(auto b : buttonList) b->onTimer();
+}
 
 void loop() {
 
     // RFID tag was already found, so play music
     if(isPlaying) {
-      audio.loop();
-      // check if music has stopped: play next track in list, or shut down if end of list
-      if(audio.getAudioFileDuration() == 0) {
-        ++track;
-        if(track >= playlist.size()) {
-          while(1);  //halt
-        }
-        audio.connecttoSD(playlist[track]);
-        // wait until audio is really playing
-        while(audio.getAudioFileDuration() == 0) audio.loop();
+
+      if(volumeUp.isCommandPending()) {
+        if(currentVolume < 21) currentVolume++;
+        audio.setVolume(currentVolume);
+        Serial.print("Volume up: ");
+        Serial.println(currentVolume);
       }
+      if(volumeDown.isCommandPending()) {
+        if(currentVolume > 0) currentVolume--;
+        audio.setVolume(currentVolume);
+        Serial.print("Volume down: ");
+        Serial.println(currentVolume);
+      }
+      
+      audio.loop();
       return;
     }
     
@@ -115,7 +198,7 @@ void loop() {
       isPlaying = true;
 
       audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-      audio.setVolume(2); // 0...21
+      audio.setVolume(currentVolume); // 0...21
 
       auto f = SD.open("/"+id+".lst", FILE_READ);
       if(!f) {
@@ -151,6 +234,15 @@ void audio_id3data(const char *info){  //id3 metadata
 }
 void audio_eof_mp3(const char *info){  //end of file
     Serial.print("eof_mp3     ");Serial.println(info);
+
+    // switch to next track of playlist
+    ++track;
+    if(track >= playlist.size()) {
+      // if no track left: terminate
+      Serial.println("Playlist has ended.");
+      while(1);  //halt
+    }
+    audio.connecttoSD(playlist[track]);
 }
 void audio_showstation(const char *info){
     Serial.print("station     ");Serial.println(info);
