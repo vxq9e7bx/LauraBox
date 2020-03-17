@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP HE721C0500
+D Reed Relays REED RELAY
+K
+F https://m.littelfuse.com/~/media/electronics/datasheets/reed_relays/littelfuse_reed_relays_he700_datasheet.pdf.pdf
+$ENDCMP
+#
+#End Doc Library

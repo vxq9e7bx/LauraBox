@@ -1,0 +1,37 @@
+EESchema-LIBRARY Version 2.3
+#encoding utf-8
+#SamacSys ECAD Model HE721C0500
+#/565003/15598/2.46/14/4/Relay or Contactor
+DEF HE721C0500 K 0 30 Y Y 1 F N
+F0 "K" 1750 300 50 H V L CNN
+F1 "HE721C0500" 1750 200 50 H V L CNN
+F2 "DIP952W51P254L1905H550Q14N" 1750 100 50 H I L CNN
+F3 "https://m.littelfuse.com/~/media/electronics/datasheets/reed_relays/littelfuse_reed_relays_he700_datasheet.pdf.pdf" 1750 0 50 H I L CNN
+F4 "Reed Relays REED RELAY" 1750 -100 50 H I L CNN "Description"
+F5 "5.5" 1750 -200 50 H I L CNN "Height"
+F6 "LITTELFUSE" 1750 -300 50 H I L CNN "Manufacturer_Name"
+F7 "HE721C0500" 1750 -400 50 H I L CNN "Manufacturer_Part_Number"
+F8 "934-HE721C0500" 1750 -500 50 H I L CNN "Mouser Part Number"
+F9 "https://www.mouser.com/Search/Refine.aspx?Keyword=934-HE721C0500" 1750 -600 50 H I L CNN "Mouser Price/Stock"
+F10 "1813284" 1750 -700 50 H I L CNN "RS Part Number"
+F11 "http://uk.rs-online.com/web/p/products/1813284" 1750 -800 50 H I L CNN "RS Price/Stock"
+DRAW
+X NC 1 0 0 200 R 50 50 0 0 N
+X COIL+ 2 0 -100 200 R 50 50 0 0 U
+X NO_PIN_1 3 0 -200 200 R 50 50 0 0 U
+X NO_PIN_2 4 0 -300 200 R 50 50 0 0 U
+X NO_PIN_3 5 0 -400 200 R 50 50 0 0 U
+X COIL- 6 0 -500 200 R 50 50 0 0 U
+X COM_1 7 0 -600 200 R 50 50 0 0 U
+X NO 14 1900 0 200 L 50 50 0 0 U
+X NOT_CONNECTED_2 13 1900 -100 200 L 50 50 0 0 U
+X NO_PIN_6 12 1900 -200 200 L 50 50 0 0 U
+X NO_PIN_5 11 1900 -300 200 L 50 50 0 0 U
+X NO_PIN_4 10 1900 -400 200 L 50 50 0 0 U
+X NOT_CONNECTED_1 9 1900 -500 200 L 50 50 0 0 U
+X COM_2 8 1900 -600 200 L 50 50 0 0 U
+P 5 0 1 6 200 100 1700 100 1700 -700 200 -700 200 100 N
+ENDDRAW
+ENDDEF
+#
+#End Library
