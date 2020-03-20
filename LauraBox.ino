@@ -79,6 +79,9 @@ struct Button {
 #define I2S_BCLK      27
 #define I2S_LRC       26
 
+// Pin for power control (soft power off)
+#define POWER_CTRL    21
+
 // Define push buttons (with pin numbers)
 Button volumeUp{32};
 Button volumeDown{33};
@@ -107,10 +110,19 @@ size_t currentVolume{5};
 
 void IRAM_ATTR onTimer();
 
+void powerOff() {
+    Serial.print("Power off.");
+    for(int i=0; i<5; ++i) {
+      Serial.print(i);
+      delay(1000);
+    }
+    digitalWrite(POWER_CTRL, LOW);
+    while(1);
+}
+
 void setup() {
-    // disable watchdog (no longer necessary?)
-    //disableCore0WDT();
-    //disableCore1WDT();
+    pinMode(POWER_CTRL, OUTPUT);
+    digitalWrite(POWER_CTRL, HIGH);
 
     // Setup SD card
     pinMode(SD_CS, OUTPUT);
@@ -124,8 +136,8 @@ void setup() {
     nfc.begin();
     byte version = nfc.getFirmwareVersion();
     if(!version || version == 0xFF) {
-      Serial.print("Didn't find MFRC522 board.");
-      while(1); //halt
+      Serial.println("Didn't find MFRC522 board.");
+      powerOff();
     }
     Serial.print("Found chip MFRC522 ");
     Serial.print("Firmware ver. 0x");
@@ -151,7 +163,7 @@ void voiceError(String error) {
     while(WiFi.status() != WL_CONNECTED) delay(1500);
     
     audio.connecttospeech(error+" h.", "DE");
-    while(1) audio.loop(); //halt
+    powerOff();
 }
 
 void IRAM_ATTR onTimer() {
@@ -240,7 +252,7 @@ void audio_eof_mp3(const char *info){  //end of file
     if(track >= playlist.size()) {
       // if no track left: terminate
       Serial.println("Playlist has ended.");
-      while(1);  //halt
+      powerOff();
     }
     audio.connecttoSD(playlist[track]);
 }
