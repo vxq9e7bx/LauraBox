@@ -9,6 +9,14 @@
 #define NFC_RST 8
 #define NFC_PWR 6
 
+class LowPowerHelper {
+  LowPowerHelper() {
+    // configure all pins as inputs with pullup - this is the recommendation by atmel for unused pins to save power
+    // need to do this before the constructor of the nfc object etc.
+    for(int i=0; i<22; ++i) pinMode(i,INPUT_PULLUP);
+  }
+};
+
 MFRC522 nfc(NFC_SS, NFC_RST);
 
 EMPTY_INTERRUPT(WDT_vect);
