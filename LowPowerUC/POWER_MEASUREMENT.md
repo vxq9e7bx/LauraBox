@@ -14,4 +14,15 @@ ON: 34 mA (a bit higher when a tag is in range)
 SLEEP: 0.36 mA
 Note: when removing the RC522 from the board in SLEEP, the current is below the measurement threshold (<0.1mA)
 
-h2. Result of duty cycle measurement
+## Result of duty cycle measurement
+
+4 periods take 8922 ms (4 times ON + SLEEP). Hence on average one cycle is 2230.5 ms long.
+
+The ON cycles take 26.7 ms / 27.0 ms / 27.2 ms / 27.1 ms = on average 27.0 ms. The duty cycle hence is 1.21%
+
+## Estimated total power consumption
+
+Average current = (34 mA * 1.21%) + (0.36mA * (1-1.21%)) = 0.77 mA
+
+With a 5200mAh battery, the run time would be 6753h = 281 days.
+
