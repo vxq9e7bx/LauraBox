@@ -1,4 +1,4 @@
-h1. Estimation of power consumption of low-power part
+# Estimation of power consumption of low-power part
 
 Measurement is done for the two states ON and SLEEP separately. To measure `on`, `nfc.requestTag` is executed in an endless loop. To measure `off`, the watchdog is disabled and hence the MPU never wakes up.
 
@@ -8,7 +8,7 @@ The measurement includes only the ATMega 328P MCU and the RC522 RFID reader with
 
 Next, the duty cycle is measured for a watchdog period of 2 seconds.
 
-h2. Result of current measurement
+## Result of current measurement
 
 ON: 34 mA (a bit higher when a tag is in range)
 SLEEP: 0.36 mA
