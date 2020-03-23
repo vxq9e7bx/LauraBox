@@ -1,6 +1,6 @@
 # Estimation of power consumption of low-power part
 
-Measurement is done for the two states ON and SLEEP separately. To measure `on`, `nfc.requestTag` is executed in an endless loop. To measure `off`, the watchdog is disabled and hence the MPU never wakes up.
+Measurement is done for the two states ON and SLEEP separately. To measure ON, `nfc.requestTag` is executed in an endless loop. To measure `off`, the watchdog is disabled and hence the MPU never wakes up.
 
 The measurement is performed with a 10 Ohms shunt. The supply voltage is set to 3.6 V. The supply voltage is measured excluding the shunt, so the measurement is free of any insertion loss.
 
