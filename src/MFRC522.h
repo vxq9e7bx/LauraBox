@@ -141,7 +141,7 @@ class MFRC522 {
   int writeToTag(byte blockAddr, byte *writeData);
   int haltTag();
 
+  SPIClass spi;
  private:
   int _sad, _reset;
-  SPIClass spi;
 };

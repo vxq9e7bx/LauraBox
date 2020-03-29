@@ -6,6 +6,24 @@
 #include "FS.h"
 #include <SPI.h>
 
+
+#include "esp_deep_sleep.h"
+#include "nvs.h"
+#include "nvs_flash.h"
+#include "soc/rtc_cntl_reg.h"
+#include "soc/rtc_io_reg.h"
+#include "soc/sens_reg.h"
+#include "soc/soc.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
+#include "esp32/ulp.h"
+#include "ulp_main.h"
+#include "ulptool.h"
+
+extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
+extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
+
+
 #include "src/MFRC522.h"
 
 // Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
@@ -13,60 +31,19 @@
 //String password = "****";
 #include "wifi-key.h"
 
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-struct Button;
-std::vector<Button*> buttonList;
+#include "Button.h"
 
-struct Button {
-    explicit Button(int pin)
-    : _pin(pin) {
-      buttonList.push_back(this);
-    }
-
-    void setup() {
-      pinMode(_pin, INPUT_PULLUP);
-    }
-
-    bool isCommandPending() {
-      portENTER_CRITICAL_ISR(&timerMux);
-      bool ret = _commandPending;
-      _commandPending = false;
-      portEXIT_CRITICAL_ISR(&timerMux);
-      return ret;
-    }
-
-    void onTimer() {
-      if(digitalRead(_pin) == HIGH) {
-        // button not pressed
-        _pressed = false;
-        return;
-      }
-
-      if(_pressed) {
-        ++_repeatCount;
-        if(_repeatCount < 50) return;
-      }
-      _repeatCount = 0;
-      _pressed = true;
-    
-      portENTER_CRITICAL_ISR(&timerMux);
-      _commandPending = true;
-      portEXIT_CRITICAL_ISR(&timerMux);
-    }
-
-  private:
-    int _pin;
-    bool _commandPending{false};
-    bool _pressed{false};
-    size_t _repeatCount{0};
-};
-
-// Pins for RC522
-#define NFC_SS        15
-#define NFC_RST       22
-#define NFC_MOSI      13
-#define NFC_MISO      12
-#define NFC_SCK       14
+// Pins for RC522 - need to be accessible by RTC / ULP coprocessor
+#define NFC_SS        4
+#define GPIO_NFC_SS   GPIO_NUM_4    // GPIO 4, RTC GPIO 10
+#define NFC_RST       2
+#define GPIO_NFC_RST  GPIO_NUM_2    // GPIO 2, RTC GPIO 12
+#define NFC_MOSI      15
+#define GPIO_NFC_MOSI GPIO_NUM_15   // GPIO 15, RTC GPIO 13
+#define NFC_MISO      13
+#define GPIO_NFC_MISO GPIO_NUM_13   // GPIO 13, RTC GPIO 14
+#define NFC_SCK       12
+#define GPIO_NFC_SCK  GPIO_NUM_12   // GPIO 12, RTC GPIO 15
 
 // Pins for SD card
 #define SD_CS          5
@@ -111,30 +88,69 @@ size_t currentVolume{5};
 void IRAM_ATTR onTimer();
 
 void powerOff() {
-    Serial.print("Power off.");
-    for(int i=0; i<5; ++i) {
-      Serial.print(i);
-      delay(1000);
-    }
-    digitalWrite(POWER_CTRL, LOW);
-    while(1);
+    Serial.printf("Entering deep sleep\n\n");
+    // enable wakeup by ULP
+    ESP_ERROR_CHECK( esp_sleep_enable_ulp_wakeup() );
+    Serial.flush();
+    esp_deep_sleep_start();
+    // this never returns, the ESP32 is reset after deep sleep, hence setup() is called after wakeup
 }
 
-void setup() {
-    pinMode(POWER_CTRL, OUTPUT);
-    digitalWrite(POWER_CTRL, HIGH);
 
-    // Setup SD card
-    pinMode(SD_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH);
-    sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+static void init_ulp_program() {
+    esp_err_t err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
+    ESP_ERROR_CHECK(err);
+  
+    err = rtc_gpio_init(GPIO_NFC_SS);
+    if(err != ESP_OK) Serial.printf("GPIO_NFC_SS not ok for RTC\n");
+    rtc_gpio_set_direction(GPIO_NFC_SS, RTC_GPIO_MODE_OUTPUT_ONLY);
+  
+    err = rtc_gpio_init(GPIO_NFC_RST);
+    if(err != ESP_OK) Serial.printf("GPIO_NFC_RST not ok for RTC\n");
+    rtc_gpio_set_direction(GPIO_NFC_RST, RTC_GPIO_MODE_OUTPUT_ONLY);
+  
+    err = rtc_gpio_init(GPIO_NFC_MOSI);
+    if(err != ESP_OK) Serial.printf("GPIO_NFC_MOSI not ok for RTC\n");
+    rtc_gpio_set_direction(GPIO_NFC_MOSI, RTC_GPIO_MODE_OUTPUT_ONLY);
+  
+    err = rtc_gpio_init(GPIO_NFC_MISO);
+    if(err != ESP_OK) Serial.printf("GPIO_NFC_MISO not ok for RTC\n");
+    rtc_gpio_set_direction(GPIO_NFC_MISO, RTC_GPIO_MODE_INPUT_ONLY);
+  
+    err = rtc_gpio_init(GPIO_NFC_SCK);
+    if(err != ESP_OK) Serial.printf("GPIO_NFC_SCK not ok for RTC\n");
+    rtc_gpio_set_direction(GPIO_NFC_SCK, RTC_GPIO_MODE_OUTPUT_ONLY);
+  
+    /* Set ULP wake up period to 2000ms */
+    ulp_set_wakeup_period(0, 2000 * 10000);
+
+    /* Start the ULP program */
+    ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
+}
+
+
+void setup() {
     Serial.begin(115200);
-    SD.begin(SD_CS);
+  
+    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+    if (cause != ESP_SLEEP_WAKEUP_ULP) {
+      Serial.printf("Not ULP wakeup, initializing ULP\n");
+      init_ulp_program();
+    } else {
+      Serial.printf("ULP wakeup\n");
+    }
+
+    while(true) {
+      Serial.printf("card id %x\n", ulp_card_id & 0xFFFF);
+    }
+
+    powerOff();
+
 
     // Setup MFRC522 and print firmware version
     Serial.println("Looking for MFRC522.");
     nfc.begin();
-    byte version = nfc.getFirmwareVersion();
+/*    byte version = nfc.getFirmwareVersion();
     if(!version || version == 0xFF) {
       Serial.println("Didn't find MFRC522 board.");
       powerOff();
@@ -143,6 +159,23 @@ void setup() {
     Serial.print("Firmware ver. 0x");
     Serial.print(version, HEX);
     Serial.println(".");
+*/
+    // Wait for RFID tag
+    byte data[MAX_LEN];
+    auto status = nfc.requestTag(MF1_REQIDL, data);
+    if(status != MI_OK) {
+      powerOff();
+    }
+
+    // configure power control pin
+    pinMode(POWER_CTRL, OUTPUT);
+    digitalWrite(POWER_CTRL, HIGH);
+
+    // Setup SD card
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+    sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+    SD.begin(SD_CS);    
 
     // Setup timer for scanning the input buttons
     timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
@@ -153,7 +186,35 @@ void setup() {
     // Setup input pins for push buttons
     for(auto b : buttonList) b->setup();
 
-    // Note: we initialise the I2S audio interface only when the music starts, because it interferes with the RFID interface (unclear why and how)
+    // read serial
+    status = nfc.antiCollision(data);
+    byte serial[4];
+    memcpy(&serial, data, 4);
+    String id = String(serial[0],HEX) + String(serial[1],HEX) + String(serial[2],HEX) + String(serial[3],HEX);
+
+    Serial.print("Tag detected: ");
+    Serial.print(id);
+    Serial.println(".");
+    isPlaying = true;
+
+    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+    audio.setVolume(currentVolume); // 0...21
+
+    auto f = SD.open("/"+id+".lst", FILE_READ);
+    if(!f) {
+      voiceError("Unbekannte Karte.");
+    }
+    while(f.available()) {
+      playlist.push_back(f.readStringUntil('\n'));
+    }
+    f.close();
+
+    track = 0;
+    audio.connecttoSD(playlist[track]);
+
+    // wait until audio is really playing
+    while(audio.getAudioFileDuration() == 0) audio.loop();
+
 }
 
 void voiceError(String error) {
@@ -198,34 +259,6 @@ void loop() {
   
     if(status == MI_OK) {
       failCount = 0;
-      // read serial
-      status = nfc.antiCollision(data);
-      byte serial[4];
-      memcpy(&serial, data, 4);
-      String id = String(serial[0],HEX) + String(serial[1],HEX) + String(serial[2],HEX) + String(serial[3],HEX);
-
-      Serial.print("Tag detected: ");
-      Serial.print(id);
-      Serial.println(".");
-      isPlaying = true;
-
-      audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-      audio.setVolume(currentVolume); // 0...21
-
-      auto f = SD.open("/"+id+".lst", FILE_READ);
-      if(!f) {
-        voiceError("Unbekannte Karte.");
-      }
-      while(f.available()) {
-        playlist.push_back(f.readStringUntil('\n'));
-      }
-      f.close();
-
-      track = 0;
-      audio.connecttoSD(playlist[track]);
-
-      // wait until audio is really playing
-      while(audio.getAudioFileDuration() == 0) audio.loop();
     }
     else {
       ++failCount;
