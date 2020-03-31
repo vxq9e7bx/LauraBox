@@ -1,6 +1,8 @@
 #include "soc/rtc_cntl_reg.h"
 #include "soc/rtc_io_reg.h"
 #include "soc/soc_ulp.h"
+#include "stack.s"
+#include "mfrc522_constants.h"
 
 #define PIN_SS    10     // GPIO 4, RTC GPIO 10
 #define PIN_RST   12     // GPIO 2, RTC GPIO 12
@@ -16,15 +18,73 @@
   /* Define variables, which go into .bss section (zero-initialized data) */
   .bss
 
+  .global stack
+stack:
+  .skip 8
+  .global stackEnd
+stackEnd:
+  .long 0
+
+  .global counter
+counter:
+  .long 0
+
   .global card_id
 card_id:
   .long 0
+
+  .data
+
+  .global init_sequence
+init_sequence:
+  .byte TModeReg
+  .byte 0x8D
+  .skip 2
+  .byte TPrescalerReg
+  .byte 0x3E
+  .skip 2
+  .byte TReloadRegL
+  .byte 0x30
+  .skip 2
+  .byte TReloadRegH
+  .byte 0x00
+  .skip 2
+  .byte TxAutoReg
+  .byte 0x40
+  .skip 2
+  .byte ModeReg
+  .byte 0x3D
+  .skip 2
+  .byte TxControlReg
+  .byte 0x83
+  .skip 2
+  .byte CommIEnReg
+  .byte 0xF7
+  .skip 2
+  .byte FIFOLevelReg
+  .byte 0x80  // flush fifo, really needed?
+  .skip 2
+  .byte FIFODataReg
+  .byte MF1_REQIDL
+  .skip 2
+  .byte CommandReg
+  .byte MFRC522_TRANSCEIVE
+  .skip 2
+  .byte BitFramingReg
+  .byte 0x87
+  .skip 2
+  .global init_sequence_length
+init_sequence_length:
+  .long (init_sequence_length - init_sequence)/4
 
   /* Code goes into .text section */
   .text
 
   .global entry
 entry:
+  // initialise stack pointer
+  move r3,stackEnd
+   
   /* Disable hold of pins */
   WRITE_RTC_REG(RTC_IO_TOUCH_PAD0_REG,RTC_IO_TOUCH_PAD0_HOLD_S,1,0)   // GPIO 4, RTC GPIO 10
   WRITE_RTC_REG(RTC_IO_TOUCH_PAD2_REG,RTC_IO_TOUCH_PAD2_HOLD_S,1,0)   // GPIO 2, RTC GPIO 12
@@ -43,32 +103,41 @@ loop:
   wait 100
   SET_PIN(PIN_RST)
 
-  // set 0x01 to 0x0F
-  move r1, 0x01
-  move r2, 0x0F
-  move r3, ret01
-  jump SPI_SET
-ret01:
+  // init sequence loop
+  assign counter, 0
+init_sequence_loop:
 
-  // read 0x01
-  move r1, 0x01
-  move r3, ret02
-  jump SPI_GET
-ret02:
+  fetch r1, counter
+  fetch_array r1, init_sequence, r1
+  move r2, r1
+  rsh r2, r2, 8
+  call SPI_SET
 
-  // write 0x01
-  move r1, 0x01
-  move r3, ret02b
-  jump SPI_SET
-ret02b:
+  increment counter, 1
+  fetch r1, counter
+  fetch r2, init_sequence_length
+  sub r0, r2, r1
+  jumpr init_sequence_loop, 0, GT
 
-  // set 0x2A to 0x8D
-  move r1, 0x2A
-  move r2, 0x8D
-  move r3, ret03
-  jump SPI_SET
-ret03:
+  // wait for card detection
+  assign counter, 0
+detection_loop:
 
+  wait 8000  // 1ms
+
+  move r1, CommIrqReg
+  call SPI_GET
+
+  move r1, 0x20  // RxIRq bit set
+  and r0, r1, r2
+  jumpr card_detected, 0, GT
+
+  increment counter, 1
+  fetch r0, counter
+  jumpr detection_loop, 25, LT
+
+card_detected:
+    
   jump loop
 
 
@@ -78,9 +147,6 @@ ret03:
  * r0 = internally used
  * r1 = register address
  * r2 = value to set
- * r3 = return address
- * 
- * All register content is destroyed after return (apart from r3, including stage counter).
  */
   .global SPI_SET
 SPI_SET:
@@ -137,7 +203,7 @@ spiSet_cont2:
   wait(5)
 
   // return
-  jump r3
+  ret
 
 
 /*
@@ -146,9 +212,6 @@ spiSet_cont2:
  * r0 = internally used
  * r1 = register address
  * r2 = value is returned here
- * r3 = return address
- * 
- * r2 containes read data, all other register content is destroyed (including stage counter, except r3)
  */
   .global SPI_GET
 SPI_GET:
@@ -204,4 +267,4 @@ spiGet_receiveLoop:
   wait(5)
 
   // return
-  jump r3
+  ret

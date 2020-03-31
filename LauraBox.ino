@@ -1,3 +1,8 @@
+//
+// Need to change this in ".arduino15/packages/esp32/hardware/esp32/1.0.4/tools/sdk/include/config/sdkconfig.h":
+// #define CONFIG_ULP_COPROC_RESERVE_MEM 1024
+//
+
 #include <thread>
 #include "Arduino.h"
 #include "WiFi.h"
@@ -88,228 +93,228 @@ size_t currentVolume{5};
 void IRAM_ATTR onTimer();
 
 void powerOff() {
-    Serial.printf("Entering deep sleep\n\n");
-    // enable wakeup by ULP
-    ESP_ERROR_CHECK( esp_sleep_enable_ulp_wakeup() );
-    Serial.flush();
-    esp_deep_sleep_start();
-    // this never returns, the ESP32 is reset after deep sleep, hence setup() is called after wakeup
+  Serial.printf("Entering deep sleep\n\n");
+  // enable wakeup by ULP
+  ESP_ERROR_CHECK( esp_sleep_enable_ulp_wakeup() );
+  Serial.flush();
+  esp_deep_sleep_start();
+  // this never returns, the ESP32 is reset after deep sleep, hence setup() is called after wakeup
 }
 
 
 static void init_ulp_program() {
-    esp_err_t err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
-    ESP_ERROR_CHECK(err);
-  
-    err = rtc_gpio_init(GPIO_NFC_SS);
-    if(err != ESP_OK) Serial.printf("GPIO_NFC_SS not ok for RTC\n");
-    rtc_gpio_set_direction(GPIO_NFC_SS, RTC_GPIO_MODE_OUTPUT_ONLY);
-  
-    err = rtc_gpio_init(GPIO_NFC_RST);
-    if(err != ESP_OK) Serial.printf("GPIO_NFC_RST not ok for RTC\n");
-    rtc_gpio_set_direction(GPIO_NFC_RST, RTC_GPIO_MODE_OUTPUT_ONLY);
-  
-    err = rtc_gpio_init(GPIO_NFC_MOSI);
-    if(err != ESP_OK) Serial.printf("GPIO_NFC_MOSI not ok for RTC\n");
-    rtc_gpio_set_direction(GPIO_NFC_MOSI, RTC_GPIO_MODE_OUTPUT_ONLY);
-  
-    err = rtc_gpio_init(GPIO_NFC_MISO);
-    if(err != ESP_OK) Serial.printf("GPIO_NFC_MISO not ok for RTC\n");
-    rtc_gpio_set_direction(GPIO_NFC_MISO, RTC_GPIO_MODE_INPUT_ONLY);
-  
-    err = rtc_gpio_init(GPIO_NFC_SCK);
-    if(err != ESP_OK) Serial.printf("GPIO_NFC_SCK not ok for RTC\n");
-    rtc_gpio_set_direction(GPIO_NFC_SCK, RTC_GPIO_MODE_OUTPUT_ONLY);
-  
-    /* Set ULP wake up period to 2000ms */
-    ulp_set_wakeup_period(0, 2000 * 10000);
+  esp_err_t err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
+  ESP_ERROR_CHECK(err);
 
-    /* Start the ULP program */
-    ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
+  err = rtc_gpio_init(GPIO_NFC_SS);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_SS not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_SS, RTC_GPIO_MODE_OUTPUT_ONLY);
+
+  err = rtc_gpio_init(GPIO_NFC_RST);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_RST not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_RST, RTC_GPIO_MODE_OUTPUT_ONLY);
+
+  err = rtc_gpio_init(GPIO_NFC_MOSI);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_MOSI not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_MOSI, RTC_GPIO_MODE_OUTPUT_ONLY);
+
+  err = rtc_gpio_init(GPIO_NFC_MISO);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_MISO not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_MISO, RTC_GPIO_MODE_INPUT_ONLY);
+
+  err = rtc_gpio_init(GPIO_NFC_SCK);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_SCK not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_SCK, RTC_GPIO_MODE_OUTPUT_ONLY);
+
+  /* Set ULP wake up period to 2000ms */
+  ulp_set_wakeup_period(0, 2000 * 10000);
+
+  /* Start the ULP program */
+  ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 }
 
 
 void setup() {
-    Serial.begin(115200);
-  
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    if (cause != ESP_SLEEP_WAKEUP_ULP) {
-      Serial.printf("Not ULP wakeup, initializing ULP\n");
-      init_ulp_program();
-    } else {
-      Serial.printf("ULP wakeup\n");
-    }
+  Serial.begin(115200);
 
-    while(true) {
-      Serial.printf("card id %x\n", ulp_card_id & 0xFFFF);
-    }
+  esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  if (cause != ESP_SLEEP_WAKEUP_ULP) {
+    Serial.printf("Not ULP wakeup, initializing ULP\n");
+    init_ulp_program();
+  } else {
+    Serial.printf("ULP wakeup\n");
+  }
 
+  while (true) {
+    Serial.printf("card id %x\n", ulp_card_id & 0xFFFF);
+  }
+
+  powerOff();
+
+
+  // Setup MFRC522 and print firmware version
+  Serial.println("Looking for MFRC522.");
+  nfc.begin();
+  /*    byte version = nfc.getFirmwareVersion();
+      if(!version || version == 0xFF) {
+        Serial.println("Didn't find MFRC522 board.");
+        powerOff();
+      }
+      Serial.print("Found chip MFRC522 ");
+      Serial.print("Firmware ver. 0x");
+      Serial.print(version, HEX);
+      Serial.println(".");
+  */
+  // Wait for RFID tag
+  byte data[MAX_LEN];
+  auto status = nfc.requestTag(MF1_REQIDL, data);
+  if (status != MI_OK) {
     powerOff();
+  }
 
+  // configure power control pin
+  pinMode(POWER_CTRL, OUTPUT);
+  digitalWrite(POWER_CTRL, HIGH);
 
-    // Setup MFRC522 and print firmware version
-    Serial.println("Looking for MFRC522.");
-    nfc.begin();
-/*    byte version = nfc.getFirmwareVersion();
-    if(!version || version == 0xFF) {
-      Serial.println("Didn't find MFRC522 board.");
-      powerOff();
-    }
-    Serial.print("Found chip MFRC522 ");
-    Serial.print("Firmware ver. 0x");
-    Serial.print(version, HEX);
-    Serial.println(".");
-*/
-    // Wait for RFID tag
-    byte data[MAX_LEN];
-    auto status = nfc.requestTag(MF1_REQIDL, data);
-    if(status != MI_OK) {
-      powerOff();
-    }
+  // Setup SD card
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+  sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  SD.begin(SD_CS);
 
-    // configure power control pin
-    pinMode(POWER_CTRL, OUTPUT);
-    digitalWrite(POWER_CTRL, HIGH);
+  // Setup timer for scanning the input buttons
+  timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
+  timerAttachInterrupt(timer, &onTimer, true);
+  timerAlarmWrite(timer, 10000, true);  // alarm every 10000 microseconds -> 100 Hz
+  timerAlarmEnable(timer);
 
-    // Setup SD card
-    pinMode(SD_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH);
-    sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    SD.begin(SD_CS);    
+  // Setup input pins for push buttons
+  for (auto b : buttonList) b->setup();
 
-    // Setup timer for scanning the input buttons
-    timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
-    timerAttachInterrupt(timer, &onTimer, true);
-    timerAlarmWrite(timer, 10000, true);  // alarm every 10000 microseconds -> 100 Hz
-    timerAlarmEnable(timer);
+  // read serial
+  status = nfc.antiCollision(data);
+  byte serial[4];
+  memcpy(&serial, data, 4);
+  String id = String(serial[0], HEX) + String(serial[1], HEX) + String(serial[2], HEX) + String(serial[3], HEX);
 
-    // Setup input pins for push buttons
-    for(auto b : buttonList) b->setup();
+  Serial.print("Tag detected: ");
+  Serial.print(id);
+  Serial.println(".");
+  isPlaying = true;
 
-    // read serial
-    status = nfc.antiCollision(data);
-    byte serial[4];
-    memcpy(&serial, data, 4);
-    String id = String(serial[0],HEX) + String(serial[1],HEX) + String(serial[2],HEX) + String(serial[3],HEX);
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(currentVolume); // 0...21
 
-    Serial.print("Tag detected: ");
-    Serial.print(id);
-    Serial.println(".");
-    isPlaying = true;
+  auto f = SD.open("/" + id + ".lst", FILE_READ);
+  if (!f) {
+    voiceError("Unbekannte Karte.");
+  }
+  while (f.available()) {
+    playlist.push_back(f.readStringUntil('\n'));
+  }
+  f.close();
 
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(currentVolume); // 0...21
+  track = 0;
+  audio.connecttoSD(playlist[track]);
 
-    auto f = SD.open("/"+id+".lst", FILE_READ);
-    if(!f) {
-      voiceError("Unbekannte Karte.");
-    }
-    while(f.available()) {
-      playlist.push_back(f.readStringUntil('\n'));
-    }
-    f.close();
-
-    track = 0;
-    audio.connecttoSD(playlist[track]);
-
-    // wait until audio is really playing
-    while(audio.getAudioFileDuration() == 0) audio.loop();
+  // wait until audio is really playing
+  while (audio.getAudioFileDuration() == 0) audio.loop();
 
 }
 
 void voiceError(String error) {
-    WiFi.disconnect();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), password.c_str());
-    while(WiFi.status() != WL_CONNECTED) delay(1500);
-    
-    audio.connecttospeech(error+" h.", "DE");
-    powerOff();
+  WiFi.disconnect();
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid.c_str(), password.c_str());
+  while (WiFi.status() != WL_CONNECTED) delay(1500);
+
+  audio.connecttospeech(error + " h.", "DE");
+  powerOff();
 }
 
 void IRAM_ATTR onTimer() {
-    for(auto b : buttonList) b->onTimer();
+  for (auto b : buttonList) b->onTimer();
 }
 
 void loop() {
 
-    // RFID tag was already found, so play music
-    if(isPlaying) {
+  // RFID tag was already found, so play music
+  if (isPlaying) {
 
-      if(volumeUp.isCommandPending()) {
-        if(currentVolume < 21) currentVolume++;
-        audio.setVolume(currentVolume);
-        Serial.print("Volume up: ");
-        Serial.println(currentVolume);
-      }
-      if(volumeDown.isCommandPending()) {
-        if(currentVolume > 0) currentVolume--;
-        audio.setVolume(currentVolume);
-        Serial.print("Volume down: ");
-        Serial.println(currentVolume);
-      }
-      
-      audio.loop();
-      return;
+    if (volumeUp.isCommandPending()) {
+      if (currentVolume < 21) currentVolume++;
+      audio.setVolume(currentVolume);
+      Serial.print("Volume up: ");
+      Serial.println(currentVolume);
     }
-    
-    // Wait for RFID tag
-    byte data[MAX_LEN];
-    auto status = nfc.requestTag(MF1_REQIDL, data);
-  
-    if(status == MI_OK) {
-      failCount = 0;
+    if (volumeDown.isCommandPending()) {
+      if (currentVolume > 0) currentVolume--;
+      audio.setVolume(currentVolume);
+      Serial.print("Volume down: ");
+      Serial.println(currentVolume);
     }
-    else {
-      ++failCount;
-      delay(100);
-      if(failCount < 100) return;   // 10 seconds
-      Serial.println("No tag found.");
-      voiceError("Keine Karte gefunden.");
-    }
+
+    audio.loop();
+    return;
+  }
+
+  // Wait for RFID tag
+  byte data[MAX_LEN];
+  auto status = nfc.requestTag(MF1_REQIDL, data);
+
+  if (status == MI_OK) {
+    failCount = 0;
+  }
+  else {
+    ++failCount;
+    delay(100);
+    if (failCount < 100) return;  // 10 seconds
+    Serial.println("No tag found.");
+    voiceError("Keine Karte gefunden.");
+  }
 
 }
 
 // optional
-void audio_info(const char *info){
-    Serial.print("info        ");Serial.println(info);
+void audio_info(const char *info) {
+  Serial.print("info        "); Serial.println(info);
 }
-void audio_id3data(const char *info){  //id3 metadata
-    Serial.print("id3data     ");Serial.println(info);
+void audio_id3data(const char *info) { //id3 metadata
+  Serial.print("id3data     "); Serial.println(info);
 }
-void audio_eof_mp3(const char *info){  //end of file
-    Serial.print("eof_mp3     ");Serial.println(info);
+void audio_eof_mp3(const char *info) { //end of file
+  Serial.print("eof_mp3     "); Serial.println(info);
 
-    // switch to next track of playlist
-    ++track;
-    if(track >= playlist.size()) {
-      // if no track left: terminate
-      Serial.println("Playlist has ended.");
-      powerOff();
-    }
-    audio.connecttoSD(playlist[track]);
+  // switch to next track of playlist
+  ++track;
+  if (track >= playlist.size()) {
+    // if no track left: terminate
+    Serial.println("Playlist has ended.");
+    powerOff();
+  }
+  audio.connecttoSD(playlist[track]);
 }
-void audio_showstation(const char *info){
-    Serial.print("station     ");Serial.println(info);
+void audio_showstation(const char *info) {
+  Serial.print("station     "); Serial.println(info);
 }
-void audio_showstreaminfo(const char *info){
-    Serial.print("streaminfo  ");Serial.println(info);
+void audio_showstreaminfo(const char *info) {
+  Serial.print("streaminfo  "); Serial.println(info);
 }
-void audio_showstreamtitle(const char *info){
-    Serial.print("streamtitle ");Serial.println(info);
+void audio_showstreamtitle(const char *info) {
+  Serial.print("streamtitle "); Serial.println(info);
 }
-void audio_bitrate(const char *info){
-    Serial.print("bitrate     ");Serial.println(info);
+void audio_bitrate(const char *info) {
+  Serial.print("bitrate     "); Serial.println(info);
 }
-void audio_commercial(const char *info){  //duration in sec
-    Serial.print("commercial  ");Serial.println(info);
+void audio_commercial(const char *info) { //duration in sec
+  Serial.print("commercial  "); Serial.println(info);
 }
-void audio_icyurl(const char *info){  //homepage
-    Serial.print("icyurl      ");Serial.println(info);
+void audio_icyurl(const char *info) { //homepage
+  Serial.print("icyurl      "); Serial.println(info);
 }
-void audio_lasthost(const char *info){  //stream URL played
-    Serial.print("lasthost    ");Serial.println(info);
+void audio_lasthost(const char *info) { //stream URL played
+  Serial.print("lasthost    "); Serial.println(info);
 }
-void audio_eof_speech(const char *info){
-    Serial.print("eof_speech  ");Serial.println(info);
+void audio_eof_speech(const char *info) {
+  Serial.print("eof_speech  "); Serial.println(info);
 }
