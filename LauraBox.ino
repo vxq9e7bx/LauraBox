@@ -127,7 +127,7 @@ static void init_ulp_program() {
   rtc_gpio_set_direction(GPIO_NFC_SCK, RTC_GPIO_MODE_OUTPUT_ONLY);
 
   /* Set ULP wake up period to 2000ms */
-  ulp_set_wakeup_period(0, 2000 * 10000);
+  ulp_set_wakeup_period(0, 2000 * 1000);
 
   /* Start the ULP program */
   ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
@@ -139,15 +139,16 @@ void setup() {
 
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   if (cause != ESP_SLEEP_WAKEUP_ULP) {
-    Serial.printf("Not ULP wakeup, initializing ULP\n");
-    init_ulp_program();
+    Serial.printf("Cold start.\n");
   } else {
-    Serial.printf("ULP wakeup\n");
+    Serial.printf("ULP wakeup.\n");
+
+    uint32_t card_id = ((ulp_card_id_hi & 0xFFFF) << 16) | (ulp_card_id_lo & 0xFFFF);
+    Serial.printf("card id %x\n", card_id);
   }
 
-  while (true) {
-    Serial.printf("card id %x\n", ulp_card_id & 0xFFFF);
-  }
+  // Somehow the ULP program gets lost after wakeup, so we need to initialise it always.
+  init_ulp_program();
 
   powerOff();
 
