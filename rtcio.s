@@ -366,7 +366,6 @@ spiGet_receiveLoop:
   jumps spiGet_receiveLoop, 8, lt
 
   // end operation
-  SET_PIN(PIN_SCK)
   SET_PIN(PIN_SS)
   SET_PIN(PIN_MOSI)
   wait(5)
