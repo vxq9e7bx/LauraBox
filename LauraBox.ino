@@ -1,6 +1,6 @@
 //
 // Need to change this in ".arduino15/packages/esp32/hardware/esp32/1.0.4/tools/sdk/include/config/sdkconfig.h":
-// #define CONFIG_ULP_COPROC_RESERVE_MEM 1024
+// #define CONFIG_ULP_COPROC_RESERVE_MEM 2048
 //
 
 #include <thread>
@@ -102,9 +102,19 @@ void powerOff() {
 }
 
 
-static void init_ulp_program() {
-  esp_err_t err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
-  ESP_ERROR_CHECK(err);
+static void init_ulp_program(bool firstBoot) {
+  esp_err_t err;
+  if(firstBoot) {
+    /* Load ULP binary */
+    err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
+    ESP_ERROR_CHECK(err);
+
+    /* Set ULP wake up period to 2000ms */
+    ulp_set_wakeup_period(0, 2000 * 1000);
+  
+    /* Start the ULP program */
+    ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
+  }
 
   err = rtc_gpio_init(GPIO_NFC_SS);
   if (err != ESP_OK) Serial.printf("GPIO_NFC_SS not ok for RTC\n");
@@ -126,11 +136,6 @@ static void init_ulp_program() {
   if (err != ESP_OK) Serial.printf("GPIO_NFC_SCK not ok for RTC\n");
   rtc_gpio_set_direction(GPIO_NFC_SCK, RTC_GPIO_MODE_OUTPUT_ONLY);
 
-  /* Set ULP wake up period to 2000ms */
-  ulp_set_wakeup_period(0, 2000 * 1000);
-
-  /* Start the ULP program */
-  ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
 }
 
 
@@ -140,38 +145,19 @@ void setup() {
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   if (cause != ESP_SLEEP_WAKEUP_ULP) {
     Serial.printf("Cold start.\n");
-  } else {
-    Serial.printf("ULP wakeup.\n");
-
-    uint32_t card_id = ((ulp_card_id_hi & 0xFFFF) << 16) | (ulp_card_id_lo & 0xFFFF);
-    Serial.printf("card id %x\n", card_id);
-  }
-
-  // Somehow the ULP program gets lost after wakeup, so we need to initialise it always.
-  init_ulp_program();
-
-  powerOff();
-
-
-  // Setup MFRC522 and print firmware version
-  Serial.println("Looking for MFRC522.");
-  nfc.begin();
-  /*    byte version = nfc.getFirmwareVersion();
-      if(!version || version == 0xFF) {
-        Serial.println("Didn't find MFRC522 board.");
-        powerOff();
-      }
-      Serial.print("Found chip MFRC522 ");
-      Serial.print("Firmware ver. 0x");
-      Serial.print(version, HEX);
-      Serial.println(".");
-  */
-  // Wait for RFID tag
-  byte data[MAX_LEN];
-  auto status = nfc.requestTag(MF1_REQIDL, data);
-  if (status != MI_OK) {
+    init_ulp_program(true);
     powerOff();
   }
+
+  Serial.printf("ULP wakeup.\n");
+  init_ulp_program(false);
+
+  uint32_t card_id = ((ulp_card_id_hi & 0xFFFF) << 16) | (ulp_card_id_lo & 0xFFFF);
+  String id = String(card_id, HEX);
+
+  Serial.print("Tag detected: ");
+  Serial.print(id);
+  Serial.println(".");
 
   // configure power control pin
   pinMode(POWER_CTRL, OUTPUT);
@@ -192,15 +178,6 @@ void setup() {
   // Setup input pins for push buttons
   for (auto b : buttonList) b->setup();
 
-  // read serial
-  status = nfc.antiCollision(data);
-  byte serial[4];
-  memcpy(&serial, data, 4);
-  String id = String(serial[0], HEX) + String(serial[1], HEX) + String(serial[2], HEX) + String(serial[3], HEX);
-
-  Serial.print("Tag detected: ");
-  Serial.print(id);
-  Serial.println(".");
   isPlaying = true;
 
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);

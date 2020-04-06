@@ -36,8 +36,18 @@ card_id_lo:
 card_id_hi:
   .long 0
 
+  .global last_card_id_lo
+last_card_id_lo:
+  .long 0
+  .global last_card_id_hi
+last_card_id_hi:
+  .long 0
+
+  /* Define variables, which go into .data section (value-initialized data) */
   .data
 
+  /* init_sequence is a sequence of address-value pairs, which is sent to the RC522 to enable
+     detection of tags. */
   .global init_sequence
 init_sequence:
   .byte TModeReg
@@ -80,6 +90,8 @@ init_sequence:
 init_sequence_length:
   .long (init_sequence_length - init_sequence)/4
 
+  /* getid_sequence is a sequence of address-value pairs, which is sent to the RC522 to read the tag
+     UID after a tag has been detected. */
   .global getid_sequence
 getid_sequence:
   .byte FIFOLevelReg
@@ -104,6 +116,11 @@ getid_sequence_length:
   /* Code goes into .text section */
   .text
 
+  /******************************************************************************************************
+   * 
+   * Main program
+   * 
+   ******************************************************************************************************/
   .global entry
 entry:
   // initialise stack pointer
@@ -127,7 +144,7 @@ loop:
   wait 100
   SET_PIN(PIN_RST)
 
-  // init sequence loop
+  // Send the init_sequence to enable tag detection
   assign counter, 0
 init_sequence_loop:
 
@@ -143,7 +160,7 @@ init_sequence_loop:
   sub r0, r2, r1
   jumpr init_sequence_loop, 0, GT
 
-  // wait for card detection
+  // Init sequence has been sent, now wait for card detection: Poll RxIRq every 1ms.
   assign counter, 0
 detection_loop:
 
@@ -160,11 +177,12 @@ detection_loop:
   fetch r0, counter
   jumpr detection_loop, 25, LT
 
-  jump sleep_ulp
+  // timout: clear card ID and go back to sleep
+  jump no_card
 
+  // Card has been detected: read the UID (send getid_sequence)
 card_detected:
 
-  // get id sequence loop
   assign counter, 0
 getid_sequence_loop:
 
@@ -180,7 +198,7 @@ getid_sequence_loop:
   sub r0, r2, r1
   jumpr getid_sequence_loop, 0, GT
 
-  // wait for id received
+  // UID has been requested, wait for response: Poll RxIRq every 1ms.
   assign counter, 0
 getid_receive_loop:
 
@@ -197,8 +215,11 @@ getid_receive_loop:
   fetch r0, counter
   jumpr getid_receive_loop, 25, LT
 
-  jump sleep_ulp
+  // Timeout: clear card ID and go back to sleep
+  jump no_card
 
+  // UID has been received: Read it from FIFO buffer
+  // TODO: Error handling and make sure FIFO buffer contains the right amount of data!
 id_received:
 
   move r1, FIFODataReg
@@ -223,16 +244,40 @@ id_received:
   or r2, r1, r2
   assign card_id_lo, r2
 
+  // UID has been read, check if it has changed. If not, go back to sleep
+  fetch r1, card_id_lo
+  fetch r2, last_card_id_lo
+  sub r0, r1, r2
+  jumpr card_changed, 0, GT
 
+  fetch r1, card_id_hi
+  fetch r2, last_card_id_hi
+  sub r0, r1, r2
+  jumpr card_changed, 0, GT
+
+  jump sleep_ulp
+card_changed:
+  // New UID detected: store UID as last UID and wake main CPU
+  fetch r1, card_id_lo
+  assign last_card_id_lo, r1
+  fetch r1, card_id_hi
+  assign last_card_id_hi, r1
+  
 wake_cpu:
   READ_RTC_FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP)
   and r0, r0, 1
   jump wake_cpu, eq    // Retry until the bit is set
   wake
+  jump sleep_ulp
 
+  // If no card is detected, clear last UID
+no_card:
+  assign last_card_id_lo, 0
+  assign last_card_id_hi, 0
+
+  // Put ULP and RC522 to sleep
 sleep_ulp:
-
-  // disable MFRC522
+  // disable MFRC522 power supply
   CLEAR_PIN(PIN_RST)
 
   /* Enable hold of pins */
@@ -246,13 +291,13 @@ sleep_ulp:
   halt
 
 
-/*
- * Pseudo function: SPI_SET - set RC522 register through SPI
+/******************************************************************************************************
+ * Function: SPI_SET - set RC522 register through SPI
  *
  * r0 = internally used
  * r1 = register address
  * r2 = value to set
- */
+ ******************************************************************************************************/
   .global SPI_SET
 SPI_SET:
 
@@ -311,13 +356,13 @@ spiSet_cont2:
   ret
 
 
-/*
- * Pseudo function: SPI_GET - get RC522 register through SPI
+/******************************************************************************************************
+ * Function: SPI_GET - get RC522 register through SPI
  *
  * r0 = internally used
  * r1 = register address
  * r2 = value is returned here
- */
+ ******************************************************************************************************/
   .global SPI_GET
 SPI_GET:
 
