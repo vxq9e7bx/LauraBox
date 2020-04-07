@@ -29,18 +29,18 @@ stackEnd:
 counter:
   .long 0
 
-  .global card_id_lo
-card_id_lo:
+  .global new_card_id_lo
+new_card_id_lo:
   .long 0
-  .global card_id_hi
-card_id_hi:
+  .global new_card_id_hi
+new_card_id_hi:
   .long 0
 
-  .global last_card_id_lo
-last_card_id_lo:
+  .global active_card_id_lo
+active_card_id_lo:
   .long 0
-  .global last_card_id_hi
-last_card_id_hi:
+  .global active_card_id_hi
+active_card_id_hi:
   .long 0
 
   /* Define variables, which go into .data section (value-initialized data) */
@@ -225,43 +225,43 @@ id_received:
   move r1, FIFODataReg
   call SPI_GET
   lsh r2, r2, 8
-  assign card_id_hi, r2
+  assign new_card_id_hi, r2
 
   move r1, FIFODataReg
   call SPI_GET
-  fetch r1, card_id_hi
+  fetch r1, new_card_id_hi
   or r2, r1, r2
-  assign card_id_hi, r2
+  assign new_card_id_hi, r2
 
   move r1, FIFODataReg
   call SPI_GET
   lsh r2, r2, 8
-  assign card_id_lo, r2
+  assign new_card_id_lo, r2
 
   move r1, FIFODataReg
   call SPI_GET
-  fetch r1, card_id_lo
+  fetch r1, new_card_id_lo
   or r2, r1, r2
-  assign card_id_lo, r2
+  assign new_card_id_lo, r2
 
   // UID has been read, check if it has changed. If not, go back to sleep
-  fetch r1, card_id_lo
-  fetch r2, last_card_id_lo
+  fetch r1, new_card_id_lo
+  fetch r2, active_card_id_lo
   sub r0, r1, r2
   jumpr card_changed, 0, GT
 
-  fetch r1, card_id_hi
-  fetch r2, last_card_id_hi
+  fetch r1, new_card_id_hi
+  fetch r2, active_card_id_hi
   sub r0, r1, r2
   jumpr card_changed, 0, GT
 
   jump sleep_ulp
 card_changed:
-  // New UID detected: store UID as last UID and wake main CPU
-  fetch r1, card_id_lo
-  assign last_card_id_lo, r1
-  fetch r1, card_id_hi
-  assign last_card_id_hi, r1
+  // New UID detected: store UID as active card id and wake main CPU
+  fetch r1, new_card_id_lo
+  assign active_card_id_lo, r1
+  fetch r1, new_card_id_hi
+  assign active_card_id_hi, r1
   
 wake_cpu:
   READ_RTC_FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP)
@@ -272,8 +272,8 @@ wake_cpu:
 
   // If no card is detected, clear last UID
 no_card:
-  assign last_card_id_lo, 0
-  assign last_card_id_hi, 0
+  assign active_card_id_lo, 0
+  assign active_card_id_hi, 0
 
   // Put ULP and RC522 to sleep
 sleep_ulp:

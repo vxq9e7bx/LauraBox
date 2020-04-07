@@ -656,6 +656,28 @@ bool Audio::pauseResume()
     return retVal;
 }
 //---------------------------------------------------------------------------------------------------------------------
+bool Audio::pause()
+{
+    bool retVal = false;
+    if(m_f_localfile || m_f_webstream)
+    {
+        m_f_running = false;
+        retVal = true;
+    }
+    return retVal;
+}
+//---------------------------------------------------------------------------------------------------------------------
+bool Audio::resume()
+{
+    bool retVal = false;
+    if(m_f_localfile || m_f_webstream)
+    {
+        m_f_running = true;
+        retVal = true;
+    }
+    return retVal;
+}
+//---------------------------------------------------------------------------------------------------------------------
 bool Audio::playChunk(){
     // If we've got data, try and pump it out...
     if(m_channels==1){

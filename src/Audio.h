@@ -80,6 +80,8 @@ public:
      * @return true if audio file or stream is active, false otherwise
      */
     bool pauseResume();
+    bool pause();
+    bool resume();
 
     void setVolume(uint8_t vol);
     uint8_t getVolume();

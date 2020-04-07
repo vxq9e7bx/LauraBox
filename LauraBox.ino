@@ -11,7 +11,6 @@
 #include "FS.h"
 #include <SPI.h>
 
-
 #include "esp_deep_sleep.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -28,9 +27,6 @@
 extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
 extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
-
-#include "src/MFRC522.h"
-
 // Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
 //String ssid =     "****";
 //String password = "****";
@@ -39,15 +35,10 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 #include "Button.h"
 
 // Pins for RC522 - need to be accessible by RTC / ULP coprocessor
-#define NFC_SS        4
 #define GPIO_NFC_SS   GPIO_NUM_4    // GPIO 4, RTC GPIO 10
-#define NFC_RST       2
 #define GPIO_NFC_RST  GPIO_NUM_2    // GPIO 2, RTC GPIO 12
-#define NFC_MOSI      15
 #define GPIO_NFC_MOSI GPIO_NUM_15   // GPIO 15, RTC GPIO 13
-#define NFC_MISO      13
 #define GPIO_NFC_MISO GPIO_NUM_13   // GPIO 13, RTC GPIO 14
-#define NFC_SCK       12
 #define GPIO_NFC_SCK  GPIO_NUM_12   // GPIO 12, RTC GPIO 15
 
 // Pins for SD card
@@ -72,18 +63,19 @@ Button trackPrev{17};
 Button pausePlay{34};    // requires external pull up
 
 Audio audio;
-MFRC522 nfc(HSPI, NFC_SCK, NFC_MISO, NFC_MOSI, NFC_SS, NFC_RST);
 SPIClass sdspi(VSPI);
 
 std::thread audioLoop;
 
-bool isPlaying{false};
 size_t failCount{0};
 std::vector<String> playlist;
 size_t track{0};
 
 hw_timer_t *timer{nullptr};
 
+uint32_t active_card_id{0};
+bool isPaused{false};
+uint32_t pauseCounter{0};
 
 bool doVolumeUp{false};
 bool doVolumeDown{false};
@@ -91,6 +83,8 @@ size_t repeatCounter{0};
 size_t currentVolume{5};
 
 void IRAM_ATTR onTimer();
+
+/**************************************************************************************************************/
 
 void powerOff() {
   Serial.printf("Entering deep sleep\n\n");
@@ -101,6 +95,7 @@ void powerOff() {
   // this never returns, the ESP32 is reset after deep sleep, hence setup() is called after wakeup
 }
 
+/**************************************************************************************************************/
 
 static void init_ulp_program(bool firstBoot) {
   esp_err_t err;
@@ -138,6 +133,13 @@ static void init_ulp_program(bool firstBoot) {
 
 }
 
+/**************************************************************************************************************/
+
+uint32_t readCardIdFromULP() {
+  return ((ulp_active_card_id_hi & 0xFFFF) << 16) | (ulp_active_card_id_lo & 0xFFFF);
+}
+
+/**************************************************************************************************************/
 
 void setup() {
   Serial.begin(115200);
@@ -151,13 +153,6 @@ void setup() {
 
   Serial.printf("ULP wakeup.\n");
   init_ulp_program(false);
-
-  uint32_t card_id = ((ulp_card_id_hi & 0xFFFF) << 16) | (ulp_card_id_lo & 0xFFFF);
-  String id = String(card_id, HEX);
-
-  Serial.print("Tag detected: ");
-  Serial.print(id);
-  Serial.println(".");
 
   // configure power control pin
   pinMode(POWER_CTRL, OUTPUT);
@@ -178,88 +173,96 @@ void setup() {
   // Setup input pins for push buttons
   for (auto b : buttonList) b->setup();
 
-  isPlaying = true;
-
+  // Configure audo interface
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   audio.setVolume(currentVolume); // 0...21
-
-  auto f = SD.open("/" + id + ".lst", FILE_READ);
-  if (!f) {
-    voiceError("Unbekannte Karte.");
-  }
-  while (f.available()) {
-    playlist.push_back(f.readStringUntil('\n'));
-  }
-  f.close();
-
-  track = 0;
-  audio.connecttoSD(playlist[track]);
-
-  // wait until audio is really playing
-  while (audio.getAudioFileDuration() == 0) audio.loop();
-
 }
+
+/**************************************************************************************************************/
 
 void voiceError(String error) {
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
-  while (WiFi.status() != WL_CONNECTED) delay(1500);
+  while(WiFi.status() != WL_CONNECTED) delay(500);
 
   audio.connecttospeech(error + " h.", "DE");
   powerOff();
 }
 
+/**************************************************************************************************************/
+
 void IRAM_ATTR onTimer() {
-  for (auto b : buttonList) b->onTimer();
+  for(auto b : buttonList) b->onTimer();
+  if(isPaused) ++pauseCounter;
 }
+
+/**************************************************************************************************************/
 
 void loop() {
 
-  // RFID tag was already found, so play music
-  if (isPlaying) {
-
-    if (volumeUp.isCommandPending()) {
-      if (currentVolume < 21) currentVolume++;
-      audio.setVolume(currentVolume);
-      Serial.print("Volume up: ");
-      Serial.println(currentVolume);
+  // Check if card lost or changed. Will also be executed right after wakup from ULP.
+  if(active_card_id != readCardIdFromULP()) {
+    if(readCardIdFromULP() == 0) {
+      if(!isPaused) {
+        Serial.print("Card lost.");
+        audio.pause();
+        pauseCounter = 0;
+        isPaused = true;
+      }
+      if(pauseCounter > 300*100) {
+        Serial.print("Pausing timed out, powering down...");
+        powerOff();
+      }
+      audio.loop();
+      return;
     }
-    if (volumeDown.isCommandPending()) {
-      if (currentVolume > 0) currentVolume--;
-      audio.setVolume(currentVolume);
-      Serial.print("Volume down: ");
-      Serial.println(currentVolume);
+
+    active_card_id = readCardIdFromULP();
+    String id = String(active_card_id, HEX);
+    Serial.print("Card detected: ");
+    Serial.print(id);
+    Serial.println(".");      
+  
+    // Read playlist from SD card
+    auto f = SD.open("/" + id + ".lst", FILE_READ);
+    if(!f) {
+      voiceError("Unbekannte Karte.");
     }
-
-    audio.loop();
-    return;
+    while(f.available()) {
+      playlist.push_back(f.readStringUntil('\n'));
+    }
+    f.close();
+  
+    // Start playing first track
+    track = 0;
+    audio.connecttoSD(playlist[track]);
+  }
+  // Card is same as currently playing one but we are paused: resume playback
+  else if(isPaused) {
+    audio.resume();
   }
 
-  // Wait for RFID tag
-  byte data[MAX_LEN];
-  auto status = nfc.requestTag(MF1_REQIDL, data);
-
-  if (status == MI_OK) {
-    failCount = 0;
+  // Check for button commands
+  if (volumeUp.isCommandPending()) {
+    if (currentVolume < 21) currentVolume++;
+    audio.setVolume(currentVolume);
+    Serial.print("Volume up: ");
+    Serial.println(currentVolume);
   }
-  else {
-    ++failCount;
-    delay(100);
-    if (failCount < 100) return;  // 10 seconds
-    Serial.println("No tag found.");
-    voiceError("Keine Karte gefunden.");
+  if (volumeDown.isCommandPending()) {
+    if (currentVolume > 0) currentVolume--;
+    audio.setVolume(currentVolume);
+    Serial.print("Volume down: ");
+    Serial.println(currentVolume);
   }
 
+  // Continue playing audio
+  audio.loop();
 }
 
-// optional
-void audio_info(const char *info) {
-  Serial.print("info        "); Serial.println(info);
-}
-void audio_id3data(const char *info) { //id3 metadata
-  Serial.print("id3data     "); Serial.println(info);
-}
+/**************************************************************************************************************/
+
 void audio_eof_mp3(const char *info) { //end of file
   Serial.print("eof_mp3     "); Serial.println(info);
 
@@ -271,6 +274,15 @@ void audio_eof_mp3(const char *info) { //end of file
     powerOff();
   }
   audio.connecttoSD(playlist[track]);
+}
+
+/**************************************************************************************************************/
+
+void audio_info(const char *info) {
+  Serial.print("info        "); Serial.println(info);
+}
+void audio_id3data(const char *info) { //id3 metadata
+  Serial.print("id3data     "); Serial.println(info);
 }
 void audio_showstation(const char *info) {
   Serial.print("station     "); Serial.println(info);
@@ -296,3 +308,5 @@ void audio_lasthost(const char *info) { //stream URL played
 void audio_eof_speech(const char *info) {
   Serial.print("eof_speech  "); Serial.println(info);
 }
+
+/**************************************************************************************************************/
