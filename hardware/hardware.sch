@@ -127,7 +127,7 @@ Wire Wire Line
 Text Label 6000 3750 1    50   ~ 0
 DTR
 Text Label 6400 3750 1    50   ~ 0
-CTS
+RTS
 $Comp
 L Switch:SW_Push SW?
 U 1 1 5E7202B3
@@ -455,23 +455,15 @@ Wire Wire Line
 Wire Wire Line
 	2850 1400 2850 1350
 Connection ~ 2850 1400
-Text Label 5900 5500 0    50   ~ 0
+Text Label 5850 5000 0    50   ~ 0
 RFID-SDA
-Text Label 5900 5400 0    50   ~ 0
+Text Label 5850 5200 0    50   ~ 0
 RFID-SCK
-Text Label 5900 5200 0    50   ~ 0
+Text Label 5850 5500 0    50   ~ 0
 RFID-MOSI
-Text Label 5900 5300 0    50   ~ 0
+Text Label 5850 5300 0    50   ~ 0
 RFID-MISO
-Wire Wire Line
-	5850 5300 5900 5300
-Wire Wire Line
-	5850 5400 5900 5400
-Wire Wire Line
-	5850 5500 5900 5500
-Wire Wire Line
-	5850 5200 5900 5200
-Text Label 5850 6100 0    50   ~ 0
+Text Label 5850 4800 0    50   ~ 0
 RFID-RST
 Text Label 5850 5900 0    50   ~ 0
 SD-MISO
@@ -479,10 +471,6 @@ Text Label 5850 6200 0    50   ~ 0
 SD-MOSI
 Text Label 5850 5800 0    50   ~ 0
 SD-SCK
-Text Label 5900 5100 0    50   ~ 0
-SD-CS
-Wire Wire Line
-	5850 5100 5900 5100
 Text Label 1350 6650 1    50   ~ 0
 VOL_DOWN
 Text Label 5850 6700 0    50   ~ 0
@@ -505,8 +493,6 @@ Text Label 5850 6300 0    50   ~ 0
 DIN
 Text Label 5850 6500 0    50   ~ 0
 BCK
-Text Label 5850 6800 0    50   ~ 0
-SW_POWER
 Text Label 2150 1900 2    50   ~ 0
 POWER_CTRL
 Text Label 5850 6000 0    50   ~ 0
@@ -1181,4 +1167,6 @@ F 3 "" H 8850 1350 50  0001 C CNN
 	1    8850 1350
 	1    0    0    -1  
 $EndComp
+Text Label 5850 5100 0    50   ~ 0
+SD-CS
 $EndSCHEMATC
