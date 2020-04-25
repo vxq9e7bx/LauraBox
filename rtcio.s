@@ -36,6 +36,13 @@ new_card_id_lo:
 new_card_id_hi:
   .long 0
 
+  .global active_card_mutex_by_main_cpu
+active_card_mutex_by_main_cpu:
+  .long 0
+  .global active_card_mutex_by_ulp_cpu
+active_card_mutex_by_ulp_cpu:
+  .long 0
+
   .global active_card_id_lo
 active_card_id_lo:
   .long 0
@@ -256,12 +263,29 @@ id_received:
   jumpr card_changed, 0, GT
 
   jump sleep_ulp
+
+retry_spin_lock:
+  move r1, 0
+  assign active_card_mutex_by_ulp_cpu, r1
+  wait(100)
+  
 card_changed:
   // New UID detected: store UID as active card id and wake main CPU
+
+  // acquire spin lock
+  move r1, 1
+  assign active_card_mutex_by_ulp_cpu, r1
+  fetch r0, active_card_mutex_by_main_cpu
+  jumpr retry_spin_lock, 0, GT
+  
   fetch r1, new_card_id_lo
   assign active_card_id_lo, r1
   fetch r1, new_card_id_hi
   assign active_card_id_hi, r1
+
+  // release lock
+  move r1, 0
+  assign active_card_mutex_by_ulp_cpu, r1
   
 wake_cpu:
   READ_RTC_FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP)

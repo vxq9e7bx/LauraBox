@@ -136,7 +136,20 @@ static void init_ulp_program(bool firstBoot) {
 /**************************************************************************************************************/
 
 uint32_t readCardIdFromULP() {
-  return ((ulp_active_card_id_hi & 0xFFFF) << 16) | (ulp_active_card_id_lo & 0xFFFF);
+  uint32_t id;
+
+  // spin lock
+  while(true) {
+    ulp_active_card_mutex_by_main_cpu = 1;
+    if(!ulp_active_card_mutex_by_ulp_cpu) break;
+    ulp_active_card_mutex_by_main_cpu = 0;
+    delay(1);
+  }
+  
+  id = ((ulp_active_card_id_hi & 0xFFFF) << 16) | (ulp_active_card_id_lo & 0xFFFF);
+
+  // release lock
+  ulp_active_card_mutex_by_main_cpu = 0;
 }
 
 /**************************************************************************************************************/
