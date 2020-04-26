@@ -273,6 +273,7 @@ void loop() {
   else if(isPaused) {
     Serial.println("Resume.");
     audio.resume();
+    isPaused = false;
   }
 
   // Check for button commands
