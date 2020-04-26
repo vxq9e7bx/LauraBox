@@ -144,7 +144,7 @@ uint32_t readCardIdFromULP() {
     ulp_active_card_mutex_by_main_cpu = 1;
     if(! (ulp_active_card_mutex_by_ulp_cpu & 0xFFFF)) break;
     ulp_active_card_mutex_by_main_cpu = 0;
-    delay(1);
+    audio.loop();
   }
   
   id = ((ulp_active_card_id_hi & 0xFFFF) << 16) | (ulp_active_card_id_lo & 0xFFFF);
