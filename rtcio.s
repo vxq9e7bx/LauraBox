@@ -4,7 +4,7 @@
 #include "stack.s"
 #include "mfrc522_constants.h"
 
-#define PIN_SS    10     // GPIO 4, RTC GPIO 10
+#define PIN_SDA   10     // GPIO 4, RTC GPIO 10
 #define PIN_RST   16     // GPIO 14, RTC GPIO 16
 #define PIN_MOSI  9      // GPIO 32, RTC GPIO 9
 #define PIN_MISO  14     // GPIO 13, RTC GPIO 14
@@ -150,7 +150,7 @@ loop:
 
   // reset RC522 and initialise SPI
   CLEAR_PIN(PIN_RST)
-  SET_PIN(PIN_SS)
+  SET_PIN(PIN_SDA)
   SET_PIN(PIN_SCK)
   SET_PIN(PIN_MOSI)
   wait 100
@@ -354,7 +354,7 @@ sleep_ulp:
 SPI_SET:
 
   // start operation
-  CLEAR_PIN(PIN_SS)
+  CLEAR_PIN(PIN_SDA)
 
   // -> send first byte: the address
   // left-shift address by 1, see MFRC522 data sheet section 8.1.2.3 "SPI address byte"
@@ -400,7 +400,7 @@ spiSet_cont2:
 
   // end operation
   SET_PIN(PIN_SCK)
-  SET_PIN(PIN_SS)
+  SET_PIN(PIN_SDA)
   SET_PIN(PIN_MOSI)
   wait(5)
 
@@ -419,7 +419,7 @@ spiSet_cont2:
 SPI_GET:
 
   // start operation
-  CLEAR_PIN(PIN_SS)
+  CLEAR_PIN(PIN_SDA)
 
   // -> send first byte: the address
   // left-shift address by 1, see MFRC522 data sheet section 8.1.2.3 "SPI address byte"
@@ -463,7 +463,7 @@ spiGet_receiveLoop:
   jumps spiGet_receiveLoop, 8, lt
 
   // end operation
-  SET_PIN(PIN_SS)
+  SET_PIN(PIN_SDA)
   SET_PIN(PIN_MOSI)
   wait(5)
 

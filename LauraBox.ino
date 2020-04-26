@@ -35,7 +35,7 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 #include "Button.h"
 
 // Pins for RC522 - need to be accessible by RTC / ULP coprocessor
-#define GPIO_NFC_SS   GPIO_NUM_4    // GPIO 4, RTC GPIO 10
+#define GPIO_NFC_SDA  GPIO_NUM_4    // GPIO 4, RTC GPIO 10
 #define GPIO_NFC_RST  GPIO_NUM_14   // GPIO 14, RTC GPIO 16
 #define GPIO_NFC_MOSI GPIO_NUM_32   // GPIO 32, RTC GPIO 9
 #define GPIO_NFC_MISO GPIO_NUM_13   // GPIO 13, RTC GPIO 14
@@ -112,9 +112,9 @@ static void init_ulp_program(bool firstBoot) {
     ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
   }
 
-  err = rtc_gpio_init(GPIO_NFC_SS);
-  if (err != ESP_OK) Serial.printf("GPIO_NFC_SS not ok for RTC\n");
-  rtc_gpio_set_direction(GPIO_NFC_SS, RTC_GPIO_MODE_OUTPUT_ONLY);
+  err = rtc_gpio_init(GPIO_NFC_SDA);
+  if (err != ESP_OK) Serial.printf("GPIO_NFC_SDA not ok for RTC\n");
+  rtc_gpio_set_direction(GPIO_NFC_SDA, RTC_GPIO_MODE_OUTPUT_ONLY);
 
   err = rtc_gpio_init(GPIO_NFC_RST);
   if (err != ESP_OK) Serial.printf("GPIO_NFC_RST not ok for RTC\n");
