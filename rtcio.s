@@ -50,6 +50,10 @@ active_card_id_lo:
 active_card_id_hi:
   .long 0
 
+  .global main_cpu_sleeps
+main_cpu_sleeps:
+  .long 0
+
   /* Define variables, which go into .data section (value-initialized data) */
   .data
 
@@ -289,9 +293,16 @@ card_changed:
   assign active_card_mutex_by_ulp_cpu, r1
   
 wake_cpu:
+  // only wake cpu if sleeping (or will sleep soon). otherwise the RTC_CNTL_RDY_FOR_WAKEUP will be never set
+  fetch r0, main_cpu_sleeps
+  jumpr sleep_ulp, 0, EQ  // main cpu not sleeping: ULP goes to sleep directly
+  
+  // main cpu is either already sleeping or about to sleep: wait until ready for wakeup
   READ_RTC_FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP)
   and r0, r0, 1
   jump wake_cpu, eq    // Retry until the bit is set
+
+  // wake main cpu up and ULP goes to sleep
   wake
   jump sleep_ulp
 

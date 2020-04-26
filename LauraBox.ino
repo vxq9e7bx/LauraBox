@@ -87,6 +87,8 @@ void IRAM_ATTR onTimer();
 
 void powerOff() {
   Serial.printf("Entering deep sleep\n\n");
+  // inform ULP we are going to sleep
+  ulp_main_cpu_sleeps = 1;
   // enable wakeup by ULP
   ESP_ERROR_CHECK( esp_sleep_enable_ulp_wakeup() );
   Serial.flush();
@@ -164,8 +166,12 @@ void setup() {
     init_ulp_program(true);
     powerOff();
   }
-
   Serial.printf("ULP wakeup.\n");
+
+  // inform ULP we are awake
+  ulp_main_cpu_sleeps = 0;
+
+  // init ULP pins
   init_ulp_program(false);
 
   // configure power control pin
