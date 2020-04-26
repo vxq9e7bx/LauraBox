@@ -457,13 +457,13 @@ Wire Wire Line
 Connection ~ 2850 1400
 Text Label 5850 5000 0    50   ~ 0
 RFID-SDA
-Text Label 5850 5200 0    50   ~ 0
+Text Label 5850 6700 0    50   ~ 0
 RFID-SCK
-Text Label 5850 5500 0    50   ~ 0
+Text Label 5850 6600 0    50   ~ 0
 RFID-MOSI
 Text Label 5850 5300 0    50   ~ 0
 RFID-MISO
-Text Label 5850 4800 0    50   ~ 0
+Text Label 5850 5400 0    50   ~ 0
 RFID-RST
 Text Label 5850 5900 0    50   ~ 0
 SD-MISO
@@ -473,11 +473,11 @@ Text Label 5850 5800 0    50   ~ 0
 SD-SCK
 Text Label 1350 6650 1    50   ~ 0
 VOL_DOWN
-Text Label 5850 6700 0    50   ~ 0
+Text Label 5850 5500 0    50   ~ 0
 VOL_DOWN
 Text Label 1950 6650 1    50   ~ 0
 VOL_UP
-Text Label 5850 6600 0    50   ~ 0
+Text Label 5850 6100 0    50   ~ 0
 VOL_UP
 Text Label 2550 6650 1    50   ~ 0
 TRK_NEXT
