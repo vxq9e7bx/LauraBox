@@ -36,10 +36,10 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
 // Pins for RC522 - need to be accessible by RTC / ULP coprocessor
 #define GPIO_NFC_SS   GPIO_NUM_4    // GPIO 4, RTC GPIO 10
-#define GPIO_NFC_RST  GPIO_NUM_2    // GPIO 2, RTC GPIO 12
-#define GPIO_NFC_MOSI GPIO_NUM_15   // GPIO 15, RTC GPIO 13
+#define GPIO_NFC_RST  GPIO_NUM_14   // GPIO 14, RTC GPIO 16
+#define GPIO_NFC_MOSI GPIO_NUM_32   // GPIO 32, RTC GPIO 9
 #define GPIO_NFC_MISO GPIO_NUM_13   // GPIO 13, RTC GPIO 14
-#define GPIO_NFC_SCK  GPIO_NUM_12   // GPIO 12, RTC GPIO 15
+#define GPIO_NFC_SCK  GPIO_NUM_33   // GPIO 33, RTC GPIO 8
 
 // Pins for SD card
 #define SD_CS          5
@@ -49,18 +49,17 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
 // Pins for I2S audio interface
 #define I2S_DOUT      25
-#define I2S_BCLK      27
-#define I2S_LRC       26
+#define I2S_SCK       27
+#define I2S_LRCK      26
 
-// Pin for power control (soft power off)
+// Pin for power control (SD card + audio)
 #define POWER_CTRL    21
 
 // Define push buttons (with pin numbers)
-Button volumeUp{32};
-Button volumeDown{33};
+Button volumeUp{22};
+Button volumeDown{15};    // suppresses boot messages if low => acceptable side effect
 Button trackNext{16};
 Button trackPrev{17};
-Button pausePlay{34};    // requires external pull up
 
 Audio audio;
 SPIClass sdspi(VSPI);
@@ -187,7 +186,8 @@ void setup() {
   for (auto b : buttonList) b->setup();
 
   // Configure audo interface
-  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  Serial.printf("Setup audio\n");
+  audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
   audio.setVolume(currentVolume); // 0...21
 }
 
