@@ -232,8 +232,9 @@ void IRAM_ATTR onTimer() {
 void loop() {
 
   // Check if card lost or changed. Will also be executed right after wakup from ULP.
-  if(active_card_id != readCardIdFromULP()) {
-    if(readCardIdFromULP() == 0) {
+  auto detected_card_id = readCardIdFromULP();
+  if(active_card_id != detected_card_id) {
+    if(detected_card_id == 0) {
       if(!isPaused) {
         Serial.println("Card lost.");
         audio.pause();
@@ -248,7 +249,7 @@ void loop() {
       return;
     }
 
-    active_card_id = readCardIdFromULP();
+    active_card_id = detected_card_id;
     String id = String(active_card_id, HEX);
     Serial.print("Card detected: ");
     Serial.print(id);
