@@ -175,33 +175,42 @@ void setup() {
   init_ulp_program(false);
 
   // configure power control pin
+  Serial.printf("Power on SD+Audio\n");
   pinMode(POWER_CTRL, OUTPUT);
   digitalWrite(POWER_CTRL, HIGH);
 
   // Setup SD card
+  Serial.printf("Setup SD\n");
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
   SD.begin(SD_CS);
 
   // Setup timer for scanning the input buttons
+  Serial.printf("Setup input timer\n");
   timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
   timerAttachInterrupt(timer, &onTimer, true);
   timerAlarmWrite(timer, 10000, true);  // alarm every 10000 microseconds -> 100 Hz
   timerAlarmEnable(timer);
 
   // Setup input pins for push buttons
+  Serial.printf("Setup input buttons\n");
   for (auto b : buttonList) b->setup();
 
   // Configure audo interface
   Serial.printf("Setup audio\n");
   audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
   audio.setVolume(currentVolume); // 0...21
+
+  Serial.printf("Init complete.\n");
 }
 
 /**************************************************************************************************************/
 
 void voiceError(String error) {
+  Serial.print("Error: ");
+  Serial.println(error);
+
   WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
@@ -226,13 +235,13 @@ void loop() {
   if(active_card_id != readCardIdFromULP()) {
     if(readCardIdFromULP() == 0) {
       if(!isPaused) {
-        Serial.print("Card lost.");
+        Serial.println("Card lost.");
         audio.pause();
         pauseCounter = 0;
         isPaused = true;
       }
       if(pauseCounter > 300*100) {
-        Serial.print("Pausing timed out, powering down...");
+        Serial.println("Pausing timed out, powering down...");
         powerOff();
       }
       audio.loop();
@@ -261,6 +270,7 @@ void loop() {
   }
   // Card is same as currently playing one but we are paused: resume playback
   else if(isPaused) {
+    Serial.println("Resume.");
     audio.resume();
   }
 
