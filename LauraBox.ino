@@ -140,7 +140,7 @@ uint32_t readCardIdFromULP() {
   // spin lock
   while(true) {
     ulp_active_card_mutex_by_main_cpu = 1;
-    if(!ulp_active_card_mutex_by_ulp_cpu) break;
+    if(! (ulp_active_card_mutex_by_ulp_cpu & 0xFFFF)) break;
     ulp_active_card_mutex_by_main_cpu = 0;
     delay(1);
   }
@@ -149,6 +149,8 @@ uint32_t readCardIdFromULP() {
 
   // release lock
   ulp_active_card_mutex_by_main_cpu = 0;
+
+  return id;
 }
 
 /**************************************************************************************************************/

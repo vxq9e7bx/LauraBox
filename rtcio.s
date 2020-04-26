@@ -265,7 +265,7 @@ id_received:
 
   jump sleep_ulp
 
-retry_spin_lock:
+retry_spin_lock_card_changed:
   move r1, 0
   assign active_card_mutex_by_ulp_cpu, r1
   wait(100)
@@ -277,7 +277,7 @@ card_changed:
   move r1, 1
   assign active_card_mutex_by_ulp_cpu, r1
   fetch r0, active_card_mutex_by_main_cpu
-  jumpr retry_spin_lock, 0, GT
+  jumpr retry_spin_lock_card_changed, 0, GT
   
   fetch r1, new_card_id_lo
   assign active_card_id_lo, r1
@@ -295,10 +295,26 @@ wake_cpu:
   wake
   jump sleep_ulp
 
+
+retry_spin_lock_no_card:
+  move r1, 0
+  assign active_card_mutex_by_ulp_cpu, r1
+  wait(100)
+  
   // If no card is detected, clear last UID
 no_card:
+  // acquire spin lock
+  move r1, 1
+  assign active_card_mutex_by_ulp_cpu, r1
+  fetch r0, active_card_mutex_by_main_cpu
+  jumpr retry_spin_lock_no_card, 0, GT
+
   assign active_card_id_lo, 0
   assign active_card_id_hi, 0
+
+  // release lock
+  move r1, 0
+  assign active_card_mutex_by_ulp_cpu, r1
 
   // Put ULP and RC522 to sleep
 sleep_ulp:
