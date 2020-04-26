@@ -79,7 +79,7 @@ uint32_t pauseCounter{0};
 bool doVolumeUp{false};
 bool doVolumeDown{false};
 size_t repeatCounter{0};
-size_t currentVolume{5};
+size_t currentVolume{10};
 
 void IRAM_ATTR onTimer();
 
