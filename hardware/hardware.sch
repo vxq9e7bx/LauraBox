@@ -488,21 +488,15 @@ TRK_PREV
 Text Label 5850 5700 0    50   ~ 0
 TRK_PREV
 Text Label 5850 6400 0    50   ~ 0
-LCK
+I2S_LRCK
 Text Label 5850 6300 0    50   ~ 0
-DIN
+I2S_DATA
 Text Label 5850 6500 0    50   ~ 0
-BCK
+I2S_BCK
 Text Label 2150 1900 2    50   ~ 0
 POWER_CTRL
 Text Label 5850 6000 0    50   ~ 0
 POWER_CTRL
-Wire Wire Line
-	8150 5100 8300 5100
-Wire Wire Line
-	8150 5200 8300 5200
-Wire Wire Line
-	8150 5300 8300 5300
 $Comp
 L power:GNDA #PWR?
 U 1 1 5E7C4BAD
@@ -562,35 +556,25 @@ F 3 "~" H 8000 5650 50  0001 C CNN
 	1    8000 5650
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	7500 4850 7500 5000
-Connection ~ 8050 5000
-Wire Wire Line
-	8000 5000 8050 5000
-Wire Wire Line
-	7500 5000 7500 5500
-Connection ~ 7500 5000
-Wire Wire Line
-	7500 5000 7700 5000
 $Comp
 L Device:R R?
 U 1 1 5E73006F
-P 7850 5000
-F 0 "R?" V 7643 5000 50  0000 C CNN
-F 1 "10k" V 7734 5000 50  0000 C CNN
-F 2 "" V 7780 5000 50  0001 C CNN
-F 3 "~" H 7850 5000 50  0001 C CNN
-	1    7850 5000
+P 7700 4700
+F 0 "R?" V 7493 4700 50  0000 C CNN
+F 1 "10k" V 7584 4700 50  0000 C CNN
+F 2 "" V 7630 4700 50  0001 C CNN
+F 3 "~" H 7700 4700 50  0001 C CNN
+	1    7700 4700
 	0    1    1    0   
 $EndComp
 Wire Wire Line
 	7500 5500 8000 5500
-Text Label 8150 5100 0    50   ~ 0
-BCK
-Text Label 8150 5200 0    50   ~ 0
-DIN
-Text Label 8150 5300 0    50   ~ 0
-LCK
+Text Label 7950 5100 0    50   ~ 0
+I2S_BCK
+Text Label 7950 5200 0    50   ~ 0
+I2S_DATA
+Text Label 7950 5300 0    50   ~ 0
+I2S_LRCK
 Wire Wire Line
 	7600 5400 8300 5400
 Wire Wire Line
@@ -598,24 +582,18 @@ Wire Wire Line
 $Comp
 L power:+3.3VDAC #PWR?
 U 1 1 5E7200C0
-P 7500 4850
-F 0 "#PWR?" H 7650 4800 50  0001 C CNN
-F 1 "+3.3VDAC" H 7520 4993 50  0000 C CNN
-F 2 "" H 7500 4850 50  0001 C CNN
-F 3 "" H 7500 4850 50  0001 C CNN
-	1    7500 4850
+P 7500 4500
+F 0 "#PWR?" H 7650 4450 50  0001 C CNN
+F 1 "+3.3VDAC" H 7520 4643 50  0000 C CNN
+F 2 "" H 7500 4500 50  0001 C CNN
+F 3 "" H 7500 4500 50  0001 C CNN
+	1    7500 4500
 	1    0    0    -1  
 $EndComp
 Text Label 9050 4700 0    50   ~ 0
 FMT
-Text Label 8150 5000 0    50   ~ 0
-SCK
-Wire Wire Line
-	8050 5000 8300 5000
-Wire Wire Line
-	8050 4700 9150 4700
-Wire Wire Line
-	8050 4700 8050 5000
+Text Label 7950 5000 0    50   ~ 0
+I2S_SCK
 Wire Wire Line
 	9150 4800 9150 4700
 Wire Wire Line
@@ -1169,4 +1147,37 @@ F 3 "" H 8850 1350 50  0001 C CNN
 $EndComp
 Text Label 5850 5100 0    50   ~ 0
 SD-CS
+Wire Wire Line
+	7950 5200 8300 5200
+Wire Wire Line
+	7950 5300 8300 5300
+Wire Wire Line
+	7950 5100 8300 5100
+Wire Wire Line
+	7500 4500 7500 4700
+Connection ~ 7500 4700
+Wire Wire Line
+	7500 4700 7500 5000
+Wire Wire Line
+	7550 4700 7500 4700
+Wire Wire Line
+	7850 4700 9150 4700
+$Comp
+L Device:R R?
+U 1 1 5EAA3BBD
+P 7700 5000
+F 0 "R?" V 7493 5000 50  0000 C CNN
+F 1 "10k" V 7584 5000 50  0000 C CNN
+F 2 "" V 7630 5000 50  0001 C CNN
+F 3 "~" H 7700 5000 50  0001 C CNN
+	1    7700 5000
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	7550 5000 7500 5000
+Connection ~ 7500 5000
+Wire Wire Line
+	7500 5000 7500 5500
+Wire Wire Line
+	7850 5000 8300 5000
 $EndSCHEMATC
