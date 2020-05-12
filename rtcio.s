@@ -10,6 +10,10 @@
 #define PIN_MISO  14     // GPIO 13, RTC GPIO 14
 #define PIN_SCK   8      // GPIO 33, RTC GPIO 8
 
+#define ADC_CH_VBATT     0       // GPIO 36, ADC1 CH0
+#define ADC_OVRSMP       10      // oversamping factor, as a result we have roughly 6000 counts per Volt (need to keep numbers below 32767)
+#define VBATT_MIN        21000   // Minimum VBATT to wake up main CPU. Ca. 3.5 V
+
 #define SET_PIN(PIN) WRITE_RTC_REG(RTC_GPIO_OUT_W1TS_REG,RTC_GPIO_OUT_DATA_W1TS_S+PIN,1,1)
 #define CLEAR_PIN(PIN) WRITE_RTC_REG(RTC_GPIO_OUT_W1TC_REG,RTC_GPIO_OUT_DATA_W1TC_S+PIN,1,1)
 #define GET_PIN(PIN) READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S + PIN, 1) 
@@ -52,6 +56,18 @@ active_card_id_hi:
 
   .global main_cpu_sleeps
 main_cpu_sleeps:
+  .long 0
+
+  .global current_volume
+current_volume:
+  .long 0
+
+  .global vbatt
+vbatt:
+  .long 0
+
+  .global vbatt_low
+vbatt_low:
   .long 0
 
   /* Define variables, which go into .data section (value-initialized data) */
@@ -135,8 +151,35 @@ getid_sequence_length:
   .global entry
 entry:
   // initialise stack pointer
-  move r3,stackEnd
+  move r3, stackEnd
 
+  /* Measure VBATT */
+  move r2, 0
+  stage_rst
+measure:
+  adc r1, 0, ADC_CH_VBATT + 1
+  add r2, r2, r1
+  stage_inc 1
+  jumps measure, ADC_OVRSMP, lt
+  assign vbatt, r2
+
+  /* Check if below shutdown voltage */
+  move r0, r2
+  jumpr ok_vbatt, VBATT_MIN, GE
+
+  // reduce wakeup frequency
+  sleep 1
+
+  // set flag to inform main CPU
+  assign vbatt_low, 1
+
+  // go to sleep
+  jump sleep_ulp
+
+  /* Battery level ok: program normal wakeup frequency and clear low battery flag */
+ok_vbatt:
+  sleep 0
+  assign vbatt_low, 0
    
   /* Disable hold of pins */
   WRITE_RTC_REG(RTC_IO_TOUCH_PAD0_REG,RTC_IO_TOUCH_PAD0_HOLD_S,1,0)   // GPIO 4, RTC GPIO 10

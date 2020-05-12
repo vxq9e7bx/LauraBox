@@ -52,8 +52,14 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 #define I2S_SCK       27
 #define I2S_LRCK      26
 
-// Pin for power control (SD card + audio)
+// Pin for power control (DAC and amplifier)
 #define POWER_CTRL    21
+
+// Pin for amplifier /shutdown and /mute signals
+#define AMP_ENA       2   // needs to be pulled low for fw download -> put to programmer connector to be safe
+
+// ADC channel to read the battery voltage. Keep in sync with constant in rtcio.s
+#define ADC_CH_VBATT ADC1_CHANNEL_0
 
 // Define push buttons (with pin numbers)
 Button volumeUp{22};
@@ -78,8 +84,6 @@ uint32_t pauseCounter{0};
 
 bool doVolumeUp{false};
 bool doVolumeDown{false};
-size_t repeatCounter{0};
-size_t currentVolume{10};
 
 void IRAM_ATTR onTimer();
 
@@ -87,6 +91,12 @@ void IRAM_ATTR onTimer();
 
 void powerOff() {
   Serial.printf("Entering deep sleep\n\n");
+  // shutdown SD card
+  sdspi.end();
+  digitalWrite(SD_CS, HIGH);
+  sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  SD.begin(SD_CS);
+  
   // inform ULP we are going to sleep
   ulp_main_cpu_sleeps = 1;
   // enable wakeup by ULP
@@ -105,12 +115,22 @@ static void init_ulp_program(bool firstBoot) {
     err = ulptool_load_binary(0, ulp_main_bin_start, (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
     ESP_ERROR_CHECK(err);
 
-    /* Set ULP wake up period to 2000ms */
-    ulp_set_wakeup_period(0, 2000 * 1000);
+    /* Set ULP wake up period to 2 seconds */
+    ulp_set_wakeup_period(0, 2 * 1000 * 1000);
+
+    /* Slow alternative ULP wake up period in case of low battery: 10 minutes */
+    ulp_set_wakeup_period(1, 60 * 1000 * 1000);  // * 10
   
     /* Start the ULP program */
     ESP_ERROR_CHECK( ulp_run((&ulp_entry - RTC_SLOW_MEM) / sizeof(uint32_t)));
+
+    /* Set default volume */
+    ulp_current_volume = 8;
   }
+
+  adc1_config_channel_atten(ADC_CH_VBATT, ADC_ATTEN_DB_11);
+  adc1_config_width(ADC_WIDTH_BIT_12);
+  adc1_ulp_enable();
 
   err = rtc_gpio_init(GPIO_NFC_SDA);
   if (err != ESP_OK) Serial.printf("GPIO_NFC_SDA not ok for RTC\n");
@@ -160,6 +180,14 @@ uint32_t readCardIdFromULP() {
 void setup() {
   Serial.begin(115200);
 
+  // Setup SD card (done always to make sure SD card is in sleep mode after reset)
+  Serial.printf("Setup SD\n");
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+  sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  SD.begin(SD_CS);
+
+  // Check wake cause
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   if (cause != ESP_SLEEP_WAKEUP_ULP) {
     Serial.printf("Cold start.\n");
@@ -167,6 +195,8 @@ void setup() {
     powerOff();
   }
   Serial.printf("ULP wakeup.\n");
+  Serial.print("VBATT: ");
+  Serial.println(ulp_vbatt & 0xFFFF);
 
   // inform ULP we are awake
   ulp_main_cpu_sleeps = 0;
@@ -177,14 +207,9 @@ void setup() {
   // configure power control pin
   Serial.printf("Power on SD+Audio\n");
   pinMode(POWER_CTRL, OUTPUT);
+  pinMode(AMP_ENA, OUTPUT);
+  digitalWrite(AMP_ENA, LOW);
   digitalWrite(POWER_CTRL, HIGH);
-
-  // Setup SD card
-  Serial.printf("Setup SD\n");
-  pinMode(SD_CS, OUTPUT);
-  digitalWrite(SD_CS, HIGH);
-  sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-  SD.begin(SD_CS);
 
   // Setup timer for scanning the input buttons
   Serial.printf("Setup input timer\n");
@@ -200,7 +225,13 @@ void setup() {
   // Configure audo interface
   Serial.printf("Setup audio\n");
   audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
-  audio.setVolume(currentVolume); // 0...21
+  audio.setVolume(ulp_current_volume); // 0...21
+  Serial.print("Volume: ");
+  Serial.println(ulp_current_volume);
+
+  Serial.printf("Enable amplifier\n");
+  delay(500);
+  digitalWrite(AMP_ENA, HIGH);
 
   Serial.printf("Init complete.\n");
 }
@@ -231,6 +262,11 @@ void IRAM_ATTR onTimer() {
 
 void loop() {
 
+  // Check if low battery
+  if(ulp_vbatt_low & 0xFFFF) {
+    voiceError("Fütter mich!");
+  }
+
   // Check if card lost or changed. Will also be executed right after wakup from ULP.
   auto detected_card_id = readCardIdFromULP();
   if(active_card_id != detected_card_id) {
@@ -241,7 +277,7 @@ void loop() {
         pauseCounter = 0;
         isPaused = true;
       }
-      if(pauseCounter > 300*100) {
+      if(pauseCounter > 3*100) {
         Serial.println("Pausing timed out, powering down...");
         powerOff();
       }
@@ -278,16 +314,16 @@ void loop() {
 
   // Check for button commands
   if (volumeUp.isCommandPending()) {
-    if (currentVolume < 21) currentVolume++;
-    audio.setVolume(currentVolume);
+    if (ulp_current_volume < 21) ulp_current_volume++;
+    audio.setVolume(ulp_current_volume);
     Serial.print("Volume up: ");
-    Serial.println(currentVolume);
+    Serial.println(ulp_current_volume);
   }
   if (volumeDown.isCommandPending()) {
-    if (currentVolume > 0) currentVolume--;
-    audio.setVolume(currentVolume);
+    if (ulp_current_volume > 0) ulp_current_volume--;
+    audio.setVolume(ulp_current_volume);
     Serial.print("Volume down: ");
-    Serial.println(currentVolume);
+    Serial.println(ulp_current_volume);
   }
 
   // Continue playing audio

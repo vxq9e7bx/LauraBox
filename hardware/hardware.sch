@@ -925,17 +925,6 @@ Wire Wire Line
 	9800 900  9800 1000
 Connection ~ 9800 1000
 $Comp
-L Device:C C?
-U 1 1 5E98019E
-P 7350 1150
-F 0 "C?" H 7465 1196 50  0000 L CNN
-F 1 "C" H 7465 1105 50  0000 L CNN
-F 2 "" H 7388 1000 50  0001 C CNN
-F 3 "~" H 7350 1150 50  0001 C CNN
-	1    7350 1150
-	1    0    0    -1  
-$EndComp
-$Comp
 L Device:L_Coupled L?
 U 1 1 5E9A568F
 P 7800 1150
@@ -950,12 +939,10 @@ Wire Wire Line
 	7600 1050 7600 1000
 Wire Wire Line
 	7600 1000 7350 1000
-Connection ~ 7350 1000
 Wire Wire Line
 	7600 1250 7600 1300
 Wire Wire Line
 	7600 1300 7350 1300
-Connection ~ 7350 1300
 Wire Wire Line
 	8000 1050 8000 1000
 Wire Wire Line

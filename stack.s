@@ -40,8 +40,8 @@
 
 // Assign value to variable
 .macro assign variable, value
-  move r0, \variable
   move r1, \value
+  move r0, \variable
   st r1, r0, 0
 .endm
 
