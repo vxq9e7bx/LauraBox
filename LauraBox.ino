@@ -184,6 +184,20 @@ uint32_t readCardIdFromULP() {
 void setup() {
   Serial.begin(115200);
 
+  // configure power control pin
+  Serial.printf("Power on SD+Audio\n");
+  pinMode(POWER_CTRL, OUTPUT);
+  pinMode(AMP_ENA, OUTPUT);
+  digitalWrite(AMP_ENA, LOW);
+  digitalWrite(POWER_CTRL, HIGH);
+
+  // Configure audo interface
+  Serial.printf("Setup audio\n");
+  audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
+  audio.setVolume(ulp_current_volume); // 0...21
+  Serial.print("Volume: ");
+  Serial.println(ulp_current_volume);
+
   // Setup SD card (done always to make sure SD card is in sleep mode after reset)
   Serial.printf("Setup SD\n");
   pinMode(SD_CS, OUTPUT);
@@ -210,13 +224,6 @@ void setup() {
   // init ULP pins
   init_ulp_program(false);
 
-  // configure power control pin
-  Serial.printf("Power on SD+Audio\n");
-  pinMode(POWER_CTRL, OUTPUT);
-  pinMode(AMP_ENA, OUTPUT);
-  digitalWrite(AMP_ENA, LOW);
-  digitalWrite(POWER_CTRL, HIGH);
-
   // Setup timer for scanning the input buttons
   Serial.printf("Setup input timer\n");
   timer = timerBegin(0, 80, true);      // prescaler 1/80 -> count microseconds
@@ -227,13 +234,6 @@ void setup() {
   // Setup input pins for push buttons
   Serial.printf("Setup input buttons\n");
   for (auto b : buttonList) b->setup();
-
-  // Configure audo interface
-  Serial.printf("Setup audio\n");
-  audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
-  audio.setVolume(ulp_current_volume); // 0...21
-  Serial.print("Volume: ");
-  Serial.println(ulp_current_volume);
 
   Serial.printf("Enable amplifier\n");
   delay(500);
@@ -248,12 +248,7 @@ void voiceError(String error) {
   Serial.print("Error: ");
   Serial.println(error);
 
-  /*WiFi.disconnect();
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid.c_str(), password.c_str());
-  while(WiFi.status() != WL_CONNECTED) delay(500);
-
-  audio.connecttospeech(error + " h.", "DE"); */
+  digitalWrite(AMP_ENA, HIGH);
 
   if(!SPIFFS.begin()){
     Serial.println("SPIFFS Mount Failed");
@@ -263,6 +258,8 @@ void voiceError(String error) {
   audio.stopSong();
   while(audio.isRunning()) audio.loop();
   audio.loop();
+
+  audio.setVolume(8);
 
   playlist.clear();
   audio.connecttoFS(SPIFFS, error+".mp3");
