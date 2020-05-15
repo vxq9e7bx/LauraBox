@@ -2,14 +2,18 @@
 // Need to change this in ".arduino15/packages/esp32/hardware/esp32/1.0.4/tools/sdk/include/config/sdkconfig.h":
 // #define CONFIG_ULP_COPROC_RESERVE_MEM 2048
 //
+// Need to install EPS32-audioI2S from here (download as ZIP, add via Sketch/Include Library)
+// https://github.com/schreibfaul1/ESP32-audioI2S/
+//
 
 #include <thread>
 #include "Arduino.h"
 #include "WiFi.h"
-#include "src/Audio.h"
+#include "Audio.h"
 #include "SD.h"
 #include "FS.h"
 #include <SPI.h>
+#include "SPIFFS.h"
 
 #include "esp_deep_sleep.h"
 #include "nvs.h"
@@ -185,7 +189,9 @@ void setup() {
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-  SD.begin(SD_CS);
+  if(!SD.begin(SD_CS)) {
+    voiceError("error");
+  }
 
   // Check wake cause
   esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
@@ -242,12 +248,27 @@ void voiceError(String error) {
   Serial.print("Error: ");
   Serial.println(error);
 
-  WiFi.disconnect();
+  /*WiFi.disconnect();
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
   while(WiFi.status() != WL_CONNECTED) delay(500);
 
-  audio.connecttospeech(error + " h.", "DE");
+  audio.connecttospeech(error + " h.", "DE"); */
+
+  if(!SPIFFS.begin()){
+    Serial.println("SPIFFS Mount Failed");
+    powerOff();
+  }
+
+  audio.stopSong();
+  while(audio.isRunning()) audio.loop();
+  audio.loop();
+
+  playlist.clear();
+  audio.connecttoFS(SPIFFS, error+".mp3");
+  audio.loop();
+  while(audio.isRunning()) audio.loop();
+
   powerOff();
 }
 
@@ -264,7 +285,7 @@ void loop() {
 
   // Check if low battery
   if(ulp_vbatt_low & 0xFFFF) {
-    voiceError("Fütter mich!");
+    voiceError("charge");
   }
 
   // Check if card lost or changed. Will also be executed right after wakup from ULP.
@@ -273,7 +294,7 @@ void loop() {
     if(detected_card_id == 0) {
       if(!isPaused) {
         Serial.println("Card lost.");
-        audio.pause();
+        if(audio.isRunning()) audio.pauseResume();
         pauseCounter = 0;
         isPaused = true;
       }
@@ -294,7 +315,7 @@ void loop() {
     // Read playlist from SD card
     auto f = SD.open("/" + id + ".lst", FILE_READ);
     if(!f) {
-      voiceError("Unbekannte Karte.");
+      voiceError("unknown_id");
     }
     while(f.available()) {
       playlist.push_back(f.readStringUntil('\n'));
@@ -308,7 +329,7 @@ void loop() {
   // Card is same as currently playing one but we are paused: resume playback
   else if(isPaused) {
     Serial.println("Resume.");
-    audio.resume();
+    if(!audio.isRunning()) audio.pauseResume();
     isPaused = false;
   }
 
