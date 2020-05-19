@@ -1139,7 +1139,7 @@ Wire Wire Line
 Wire Wire Line
 	8950 1100 9050 1100
 Text Label 10450 3850 2    50   ~ 0
-POWER_CTRL
+AMP_ENA
 Wire Wire Line
 	9750 3850 9900 3850
 Connection ~ 9900 3850
@@ -1589,4 +1589,10 @@ Wire Wire Line
 Connection ~ 9950 4800
 Wire Wire Line
 	9950 4800 10050 4800
+Text Label 5500 3750 0    50   ~ 0
+AMP_ENA
+Wire Wire Line
+	5500 3750 5950 3750
+Wire Wire Line
+	5950 3750 5950 2600
 $EndSCHEMATC
