@@ -1,4 +1,6 @@
 (sym_lib_table
   (lib (name HE721C0500)(type Legacy)(uri ${KIPRJMOD}/library/HE721C0500.lib)(options "")(descr ""))
   (lib (name XRP6272)(type Legacy)(uri ${KIPRJMOD}/library/XRP6272.lib)(options "")(descr ""))
+  (lib (name MicroSD_Slot)(type Legacy)(uri "${KIPRJMOD}/library/MicroSD Slot.lib")(options "")(descr ""))
+  (lib (name pam8403)(type Legacy)(uri ${KIPRJMOD}/library/pam8403.lib)(options "")(descr ""))
 )
