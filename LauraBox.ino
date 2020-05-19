@@ -83,11 +83,7 @@ size_t track{0};
 hw_timer_t *timer{nullptr};
 
 uint32_t active_card_id{0};
-bool isPaused{false};
-uint32_t pauseCounter{0};
-
-bool doVolumeUp{false};
-bool doVolumeDown{false};
+bool isStreaming{false};
 
 void IRAM_ATTR onTimer();
 
@@ -130,6 +126,9 @@ static void init_ulp_program(bool firstBoot) {
 
     /* Set default volume */
     ulp_current_volume = 8;
+
+    /* Clear last card id */
+    ulp_last_card_id = 0;
   }
 
   adc1_config_channel_atten(ADC_CH_VBATT, ADC_ATTEN_DB_11);
@@ -194,9 +193,6 @@ void setup() {
   // Configure audo interface
   Serial.printf("Setup audio\n");
   audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
-  audio.setVolume(ulp_current_volume); // 0...21
-  Serial.print("Volume: ");
-  Serial.println(ulp_current_volume);
 
   // Setup SD card (done always to make sure SD card is in sleep mode after reset)
   Serial.printf("Setup SD\n");
@@ -223,6 +219,11 @@ void setup() {
 
   // init ULP pins
   init_ulp_program(false);
+
+  // set audio volume
+  audio.setVolume(ulp_current_volume); // 0...21
+  Serial.print("Volume: ");
+  Serial.println(ulp_current_volume);
 
   // Setup timer for scanning the input buttons
   Serial.printf("Setup input timer\n");
@@ -273,7 +274,31 @@ void voiceError(String error) {
 
 void IRAM_ATTR onTimer() {
   for(auto b : buttonList) b->onTimer();
-  if(isPaused) ++pauseCounter;
+}
+
+/**************************************************************************************************************/
+
+void play(String uri) {
+  if(!uri.startsWith("http://") && !uri.startsWith("https://")) {
+    isStreaming = false;
+    WiFi.disconnect();
+    audio.connecttoSD(uri);
+  }
+  else {
+    isStreaming = true;
+    if(WiFi.status() != WL_CONNECTED) {
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(ssid.c_str(), password.c_str());
+      size_t cTimeOut = 0;
+      while(WiFi.status() != WL_CONNECTED) {
+        if(++cTimeOut > 60) {
+          voiceError("error");
+        }
+        delay(500);
+      }
+    }
+    audio.connecttohost(uri);
+  }
 }
 
 /**************************************************************************************************************/
@@ -289,26 +314,27 @@ void loop() {
   auto detected_card_id = readCardIdFromULP();
   if(active_card_id != detected_card_id) {
     if(detected_card_id == 0) {
-      if(!isPaused) {
-        Serial.println("Card lost.");
-        if(audio.isRunning()) audio.pauseResume();
-        pauseCounter = 0;
-        isPaused = true;
+      Serial.println("Card lost.");
+      if(audio.isRunning()) audio.pauseResume();
+
+      // store current position in RTC memory, to allow resuming if same card is read again
+      ulp_last_card_id = active_card_id;
+      ulp_last_track = track;
+      if(!isStreaming) {
+        ulp_last_file_position = audio.getFilePos();
       }
-      if(pauseCounter > 3*100) {
-        Serial.println("Pausing timed out, powering down...");
-        powerOff();
+      else {
+        ulp_last_file_position = 0;
       }
-      audio.loop();
-      return;
+      powerOff();
     }
 
     active_card_id = detected_card_id;
     String id = String(active_card_id, HEX);
     Serial.print("Card detected: ");
     Serial.print(id);
-    Serial.println(".");      
-  
+    Serial.println(".");
+
     // Read playlist from SD card
     auto f = SD.open("/" + id + ".lst", FILE_READ);
     if(!f) {
@@ -318,30 +344,44 @@ void loop() {
       playlist.push_back(f.readStringUntil('\n'));
     }
     f.close();
-  
+
     // Start playing first track
-    track = 0;
-    audio.connecttoSD(playlist[track]);
-  }
-  // Card is same as currently playing one but we are paused: resume playback
-  else if(isPaused) {
-    Serial.println("Resume.");
-    if(!audio.isRunning()) audio.pauseResume();
-    isPaused = false;
+    if(ulp_last_card_id != active_card_id) {
+      track = 0;
+      play(playlist[track]);
+    }
+    else {
+      Serial.println("Resuming.");
+      track = ulp_last_track;
+      play(playlist[track]);
+      audio.setFilePos(ulp_last_file_position);
+    }
   }
 
   // Check for button commands
-  if (volumeUp.isCommandPending()) {
-    if (ulp_current_volume < 21) ulp_current_volume++;
+  if(volumeUp.isCommandPending()) {
+    if(ulp_current_volume < 21) ulp_current_volume++;
     audio.setVolume(ulp_current_volume);
     Serial.print("Volume up: ");
     Serial.println(ulp_current_volume);
   }
-  if (volumeDown.isCommandPending()) {
-    if (ulp_current_volume > 0) ulp_current_volume--;
+  if(volumeDown.isCommandPending()) {
+    if(ulp_current_volume > 0) ulp_current_volume--;
     audio.setVolume(ulp_current_volume);
     Serial.print("Volume down: ");
     Serial.println(ulp_current_volume);
+  }
+  if(trackNext.isCommandPending()) {
+    if(track < playlist.size()-1) {
+      ++track;
+      play(playlist[track]);
+    }
+  }
+  if(trackPrev.isCommandPending()) {
+    if(track > 0) {
+      --track;
+      play(playlist[track]);
+    }
   }
 
   // Continue playing audio
@@ -355,12 +395,13 @@ void audio_eof_mp3(const char *info) { //end of file
 
   // switch to next track of playlist
   ++track;
-  if (track >= playlist.size()) {
+  if(track >= playlist.size()) {
     // if no track left: terminate
     Serial.println("Playlist has ended.");
+    active_card_id = 0;
     powerOff();
   }
-  audio.connecttoSD(playlist[track]);
+  play(playlist[track]);
 }
 
 /**************************************************************************************************************/
