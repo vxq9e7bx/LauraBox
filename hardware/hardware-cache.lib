@@ -311,11 +311,11 @@ X ADJ 5 350 -350 100 L 50 50 1 1 I
 ENDDRAW
 ENDDEF
 #
-# hardware-rescue_ESP32-WROOM-32-RF_Module
+# hardware-rescue_ESP32-WROOM-32-RF_Module-hardware-rescue
 #
-DEF hardware-rescue_ESP32-WROOM-32-RF_Module U 0 20 Y Y 1 F N
+DEF hardware-rescue_ESP32-WROOM-32-RF_Module-hardware-rescue U 0 20 Y Y 1 F N
 F0 "U" -500 1350 50 H V L CNN
-F1 "hardware-rescue_ESP32-WROOM-32-RF_Module" 50 1350 50 H V L CNN
+F1 "hardware-rescue_ESP32-WROOM-32-RF_Module-hardware-rescue" 50 1350 50 H V L CNN
 F2 "RF_Module:ESP32-WROOM-32" 0 -1500 50 H I C CNN
 F3 "" -300 50 50 H I C CNN
 $FPLIST
@@ -477,6 +477,19 @@ DRAW
 S -50 -60 50 -80 0 1 10 F
 P 2 0 1 0 0 0 0 -60 N
 X GNDD 1 0 0 0 D 50 50 1 1 W N
+ENDDRAW
+ENDDEF
+#
+# power_PWR_FLAG
+#
+DEF power_PWR_FLAG #FLG 0 0 N N 1 F P
+F0 "#FLG" 0 75 50 H I C CNN
+F1 "power_PWR_FLAG" 0 150 50 H V C CNN
+F2 "" 0 0 50 H I C CNN
+F3 "" 0 0 50 H I C CNN
+DRAW
+P 6 0 1 0 0 0 0 50 -40 75 0 100 40 75 0 50 N
+X pwr 1 0 0 0 U 50 50 0 0 w
 ENDDRAW
 ENDDEF
 #
