@@ -1,4 +1,5 @@
 EESchema Schematic File Version 4
+LIBS:hardware-cache
 EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
@@ -1708,4 +1709,30 @@ Text Label 5850 7150 2    50   ~ 0
 EXT4
 Text Label 5500 4150 0    50   ~ 0
 EXT4
+$Comp
+L Switch:SW_Push SW?
+U 1 1 5ECDD608
+P 3600 7000
+F 0 "SW?" V 3554 7148 50  0000 L CNN
+F 1 "Reset" V 3645 7148 50  0000 L CNN
+F 2 "" H 3600 7200 50  0001 C CNN
+F 3 "~" H 3600 7200 50  0001 C CNN
+	1    3600 7000
+	0    1    1    0   
+$EndComp
+$Comp
+L power:GNDD #PWR?
+U 1 1 5ECDDABA
+P 3600 7200
+F 0 "#PWR?" H 3600 6950 50  0001 C CNN
+F 1 "GNDD" H 3604 7045 50  0000 C CNN
+F 2 "" H 3600 7200 50  0001 C CNN
+F 3 "" H 3600 7200 50  0001 C CNN
+	1    3600 7200
+	1    0    0    -1  
+$EndComp
+Text Label 3600 6800 1    50   ~ 0
+RESET
+Text Label 4200 3300 1    50   ~ 0
+RESET
 $EndSCHEMATC
