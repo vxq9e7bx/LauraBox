@@ -1,4 +1,5 @@
 EESchema Schematic File Version 4
+LIBS:hardware-cache
 EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
@@ -14,7 +15,7 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L RF_Module:ESP32-WROOM-32 U?
+L hardware-rescue:ESP32-WROOM-32-RF_Module U?
 U 1 1 5E6E43BB
 P 4900 4750
 F 0 "U?" V 4200 3750 50  0000 C CNN
@@ -1241,64 +1242,22 @@ F 3 "" H 7250 6150 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	9950 4800 10050 4800
-Connection ~ 9950 4800
-Wire Wire Line
-	9950 4900 9950 4800
-Wire Wire Line
-	9000 4800 9100 4800
-Connection ~ 9000 4800
-Wire Wire Line
-	9000 4900 9000 4800
-Wire Wire Line
 	9850 4500 9600 4500
-Connection ~ 9850 4500
 Wire Wire Line
 	9600 4500 9600 4150
-Wire Wire Line
-	10050 4500 9850 4500
-Connection ~ 9100 4500
 Wire Wire Line
 	9300 4500 9300 4300
 Wire Wire Line
 	9100 4500 9300 4500
-Wire Wire Line
-	9850 4800 9950 4800
-$Comp
-L Device:C C?
-U 1 1 5EFB32FF
-P 10050 4650
-F 0 "C?" H 10165 4696 50  0000 L CNN
-F 1 "0.22uF" H 10165 4605 50  0000 L CNN
-F 2 "" H 10088 4500 50  0001 C CNN
-F 3 "~" H 10050 4650 50  0001 C CNN
-	1    10050 4650
-	1    0    0    -1  
-$EndComp
 $Comp
 L Device:C C?
 U 1 1 5EFB2FFE
 P 9850 4650
 F 0 "C?" H 10050 4600 50  0000 R CNN
-F 1 "0.22uF" H 10200 4700 50  0000 R CNN
+F 1 "33nF" H 10200 4700 50  0000 R CNN
 F 2 "" H 9888 4500 50  0001 C CNN
 F 3 "~" H 9850 4650 50  0001 C CNN
 	1    9850 4650
-	-1   0    0    1   
-$EndComp
-Wire Wire Line
-	8900 4500 9100 4500
-Wire Wire Line
-	8900 4800 9000 4800
-$Comp
-L Device:C C?
-U 1 1 5EF8F703
-P 8900 4650
-F 0 "C?" H 9100 4600 50  0000 R CNN
-F 1 "0.22uF" H 9250 4700 50  0000 R CNN
-F 2 "" H 8938 4500 50  0001 C CNN
-F 3 "~" H 8900 4650 50  0001 C CNN
-	1    8900 4650
 	-1   0    0    1   
 $EndComp
 Connection ~ 7450 2800
@@ -1417,9 +1376,9 @@ Wire Wire Line
 	9450 3900 9450 3850
 Wire Wire Line
 	9300 3850 9300 4000
-Text Label 9950 4900 0    50   ~ 0
+Text Label 9850 4900 0    50   ~ 0
 R
-Text Label 9000 4900 0    50   ~ 0
+Text Label 9100 4900 0    50   ~ 0
 L
 $Comp
 L Device:R R?
@@ -1463,7 +1422,7 @@ L Device:C C?
 U 1 1 5EE3AD75
 P 9100 4650
 F 0 "C?" H 9215 4696 50  0000 L CNN
-F 1 "0.22uF" H 9215 4605 50  0000 L CNN
+F 1 "33nF" H 9215 4605 50  0000 L CNN
 F 2 "" H 9138 4500 50  0001 C CNN
 F 3 "~" H 9100 4650 50  0001 C CNN
 	1    9100 4650
@@ -1594,4 +1553,8 @@ F 3 "" H 10500 3350 50  0001 C CNN
 	1    10500 3350
 	1    0    0    -1  
 $EndComp
+Wire Wire Line
+	9850 4900 9850 4800
+Wire Wire Line
+	9100 4900 9100 4800
 $EndSCHEMATC
