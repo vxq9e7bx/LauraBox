@@ -246,11 +246,11 @@ init_sequence_loop:
   sub r0, r2, r1
   jumpr init_sequence_loop, 0, GT
 
-  // Init sequence has been sent, now wait for card detection: Poll RxIRq every 1ms.
+  // Init sequence has been sent, now wait for card detection: Poll RxIRq every 0.5ms, maximum 10 times
   assign counter, 0
 detection_loop:
 
-  wait 8000  // 1ms
+  wait 4000  // 0.5ms
 
   move r1, CommIrqReg
   call SPI_GET
@@ -261,7 +261,7 @@ detection_loop:
 
   increment counter, 1
   fetch r0, counter
-  jumpr detection_loop, 25, LT
+  jumpr detection_loop, 10, LT
 
   // timout: clear card ID and go back to sleep
   jump no_card
