@@ -1,4 +1,4 @@
-update=Sa 20 Jun 2020 16:03:32 CEST
+update=So 21 Jun 2020 14:46:42 CEST
 version=1
 last_client=kicad
 [general]
@@ -239,7 +239,7 @@ Enabled=0
 [pcbnew/Netclasses]
 [pcbnew/Netclasses/Default]
 Name=Default
-Clearance=0.3
+Clearance=0.2
 TrackWidth=0.4
 ViaDiameter=1.5
 ViaDrill=0.5
@@ -250,7 +250,7 @@ dPairGap=0.25
 dPairViaGap=0.25
 [pcbnew/Netclasses/1]
 Name=Power
-Clearance=0.3
+Clearance=0.2
 TrackWidth=0.8
 ViaDiameter=2
 ViaDrill=0.5
@@ -261,8 +261,19 @@ dPairGap=0.25
 dPairViaGap=0.25
 [pcbnew/Netclasses/2]
 Name=Power D
-Clearance=0.3
+Clearance=0.2
 TrackWidth=0.6
+ViaDiameter=2
+ViaDrill=0.5
+uViaDiameter=0.3
+uViaDrill=0.1
+dPairWidth=0.2
+dPairGap=0.25
+dPairViaGap=0.25
+[pcbnew/Netclasses/3]
+Name=Speaker
+Clearance=0.2
+TrackWidth=0.8
 ViaDiameter=2
 ViaDrill=0.5
 uViaDiameter=0.3

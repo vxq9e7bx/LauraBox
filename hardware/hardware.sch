@@ -1328,11 +1328,6 @@ F 3 "" H 10600 2950 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	10500 3300 10500 3350
-Connection ~ 10500 3300
-Wire Wire Line
-	10500 3150 10500 3300
-Wire Wire Line
 	8850 3900 9450 3900
 $Comp
 L power:GNDA #PWR044
@@ -1375,21 +1370,6 @@ F 3 "~" H 9300 4150 50  0001 C CNN
 	1    9300 4150
 	-1   0    0    1   
 $EndComp
-$Comp
-L Connector:Conn_01x05_Male J8
-U 1 1 5E6FF5AC
-P 9550 1900
-F 0 "J8" V 9612 2144 50  0000 L CNN
-F 1 "Speakers" V 9703 2144 50  0000 L CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal" H 9550 1900 50  0001 C CNN
-F 3 "~" H 9550 1900 50  0001 C CNN
-	1    9550 1900
-	0    1    1    0   
-$EndComp
-Wire Wire Line
-	9300 2100 9350 2100
-Wire Wire Line
-	9800 2100 9750 2100
 $Comp
 L Device:C C15
 U 1 1 5EE3AD75
@@ -1469,17 +1449,6 @@ F 3 "~" H 10650 4200 50  0001 C CNN
 $EndComp
 Text Label 10000 4200 0    50   ~ 0
 AMP_ENA
-$Comp
-L pam8403:PAM8403 U4
-U 1 1 5ED28A94
-P 9550 3050
-F 0 "U4" V 10300 3800 60  0000 L CNN
-F 1 "PAM8403" V 10200 3650 60  0000 L CNN
-F 2 "Package_SO:SOP-16_4.55x10.3mm_P1.27mm" H 9550 3050 60  0001 C CNN
-F 3 "" H 9550 3050 60  0000 C CNN
-	1    9550 3050
-	0    -1   -1   0   
-$EndComp
 $Comp
 L power:GNDA #PWR034
 U 1 1 5E6FE29B
@@ -1570,7 +1539,6 @@ NoConn ~ 9150 5450
 NoConn ~ 9250 5450
 NoConn ~ 9450 5450
 NoConn ~ 9550 5450
-NoConn ~ 9550 2100
 NoConn ~ 1650 2700
 Wire Wire Line
 	9850 1400 9850 1450
@@ -1775,4 +1743,64 @@ Wire Wire Line
 	1950 1150 2000 1150
 Wire Wire Line
 	2000 1050 2000 1150
+$Comp
+L power:GNDA #PWR?
+U 1 1 5EF674CC
+P 9550 2100
+F 0 "#PWR?" H 9550 1850 50  0001 C CNN
+F 1 "GNDA" H 9555 1927 50  0000 C CNN
+F 2 "" H 9550 2100 50  0001 C CNN
+F 3 "" H 9550 2100 50  0001 C CNN
+	1    9550 2100
+	1    0    0    -1  
+$EndComp
+Text Label 9800 2100 1    50   ~ 0
+SR+
+$Comp
+L Connector:Conn_01x05_Male J8
+U 1 1 5E6FF5AC
+P 9550 1700
+F 0 "J8" V 9612 1944 50  0000 L CNN
+F 1 "Speakers" V 9703 1944 50  0000 L CNN
+F 2 "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Horizontal" H 9550 1700 50  0001 C CNN
+F 3 "~" H 9550 1700 50  0001 C CNN
+	1    9550 1700
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	9750 1900 9800 1900
+Wire Wire Line
+	9800 1900 9800 2100
+Text Label 9650 2100 1    50   ~ 0
+SR-
+Text Label 9450 2100 1    50   ~ 0
+SL-
+Text Label 9300 2100 1    50   ~ 0
+SL+
+Connection ~ 10500 3300
+Wire Wire Line
+	10500 3150 10500 3300
+Wire Wire Line
+	10500 3300 10500 3350
+$Comp
+L pam8403:PAM8403 U4
+U 1 1 5ED28A94
+P 9550 3050
+F 0 "U4" V 10300 3800 60  0000 L CNN
+F 1 "PAM8403" V 10200 3650 60  0000 L CNN
+F 2 "Package_SO:SOP-16_4.55x10.3mm_P1.27mm" H 9550 3050 60  0001 C CNN
+F 3 "" H 9550 3050 60  0000 C CNN
+	1    9550 3050
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	9300 2100 9300 1900
+Wire Wire Line
+	9300 1900 9350 1900
+Wire Wire Line
+	9450 2100 9450 1900
+Wire Wire Line
+	9550 1900 9550 2100
+Wire Wire Line
+	9650 1900 9650 2100
 $EndSCHEMATC
