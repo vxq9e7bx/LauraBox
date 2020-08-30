@@ -1,5 +1,5 @@
 (fp_lib_table
   (lib (name choke)(type KiCad)(uri ${KIPRJMOD}/library/choke.pretty)(options "")(descr ""))
   (lib (name RFID-RC522)(type KiCad)(uri ${KIPRJMOD}/library/RFID-RC522.pretty)(options "")(descr ""))
-  (lib (name SDSlot)(type KiCad)(uri /home/mhier/Arduino/LauraBox/hardware/library/104031-0811.pretty)(options "")(descr ""))
+  (lib (name SDSlot)(type KiCad)(uri ${KIPRJMOD}//library/104031-0811.pretty)(options "")(descr ""))
 )
