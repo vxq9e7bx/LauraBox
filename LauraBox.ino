@@ -97,6 +97,13 @@ void IRAM_ATTR onTimer();
 
 bool isUpdateMode{false};
 
+bool playlistUpdateInBackgbround = false;
+std::atomic<bool> playlistUpdateError = false;
+std::atomic<bool> playlistUpdateDone = false;
+std::thread playlistUpdater;
+
+bool connectWifi(bool required=true);
+
 /**************************************************************************************************************/
 
 void setupOTA() {
@@ -137,7 +144,102 @@ void setupOTA() {
 
 /**************************************************************************************************************/
 
+void updatePlaylist() {
+  HTTPClient http;
+
+  // connect wifi
+  if(!connectWifi(false)) {
+    Serial.printf("Could not connect to wifi!\n");
+    playlistUpdateError = true;
+    return;
+  }
+
+  // download playlist
+  auto url = baseUrl+"/"+id+".lst";
+  Serial.println("Attempting url: "+url);
+  http.begin(url);
+  int httpCode = http.GET();
+  if(httpCode != 200) {
+    Serial.print("Http error: ");
+    Serial.println(httpCode);
+    playlistUpdateError = true;
+    return;
+  }
+  Serial.println("Found online, starting download...");
+  
+  // save playlist to file
+  auto f = SD.open("/templist", FILE_WRITE);
+  http.writeToStream(&f);
+  f.close();
+  http.end();
+  
+  // read new list to memory
+  std::set<std::string> newlist;
+  f = SD.open("/templist", FILE_READ);
+  while(f.available()) {
+    newlist.insert(f.readStringUntil('\n'));
+  }
+  f.close();
+  
+  // download each track on playlist
+  for(auto &track : newlist) {
+    if(!SD.exists(track)) {
+      Serial.println("Downloading '"+track+"'...");
+      http.begin(baseUrl+"/"+track);
+      int httpCode = http.GET();
+      if(httpCode >= 200 && httpCode <= 299) {
+        f = SD.open("/"+track, FILE_WRITE);
+        http.writeToStream(&f);
+        f.close();
+      }
+      else {
+        Serial.print("Error downloading '"+track+"': ");
+        Serial.println(httpCode);
+      }
+      http.end();
+    }
+  }
+  
+  // check for tracks only on old list and remove them
+  if(!SD.exists("/" + id + ".lst")) {
+
+    // read old list to memory
+    std::set<std::string> oldlist;
+    f = SD.open("/" + id + ".lst", FILE_READ);
+    while(f.available()) {
+      oldlist.insert(f.readStringUntil('\n'));
+    }
+    f.close();
+    
+    // remove each track from oldlist which is present in the newlist
+    for(auto &track : oldlist) {
+      if(newlist.count(track) != 0) continue;
+      Serial.println("Removing orphaned track: "+track);
+      SD.remove(track);
+    }
+  }
+    
+  // update track list file
+  auto fin = SD.open("/templist", FILE_READ);
+  auto fout = SD.open("/" + id + ".lst", FILE_WRITE);
+  while(fin.available()) {
+    fout.println(fin.readStringUntil('\n'));
+  }
+  fin.close();
+  fout.close();
+
+  Serial.println("Playlist update complate!");
+  playlistUpdateDone = true;
+}
+
+/**************************************************************************************************************/
+
 void powerOff() {
+  if(playlistUpdateInBackgbround) {
+    Serial.printf("Waiting for playlist update to complete...\n\n");
+    playlistUpdater.join();
+  }
+
   Serial.printf("Entering deep sleep\n\n");
   // shutdown SD card
   sdspi.end();
@@ -326,7 +428,7 @@ void IRAM_ATTR onTimer() {
 
 /**************************************************************************************************************/
 
-void connectWifi() {
+bool connectWifi(bool required) {
   if(WiFi.status() != WL_CONNECTED) {
     Serial.println("Connecting WIFI...");
     WiFi.mode(WIFI_STA);
@@ -334,6 +436,7 @@ void connectWifi() {
     size_t cTimeOut = 0;
     while(WiFi.status() != WL_CONNECTED) {
       if(++cTimeOut > 60) {
+        if(!requrired) return false;
         voiceError("error");
       }
       delay(500);
@@ -341,6 +444,7 @@ void connectWifi() {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
   }
+  return true;
 }
 
 /**************************************************************************************************************/
@@ -406,44 +510,21 @@ void loop() {
     // Read playlist from SD card
     auto f = SD.open("/" + id + ".lst", FILE_READ);
     if(!f) {
-      connectWifi();
-      HTTPClient http;
-      auto url = baseUrl+"/"+id+".lst";
-      Serial.println("Attempting url: "+url);
-      http.begin(url);
-      int httpCode = http.GET();
-      if(httpCode != 200) {
-        Serial.print("Http error: ");
-        Serial.println(httpCode);
+      // download playlist for first time
+      updatePlaylist();
+      f = SD.open("/" + id + ".lst", FILE_READ);
+      if(!f) {
         voiceError("unknown_id");
       }
-      Serial.println("Found online, starting download...");
-      // Download playlist
-      auto f = SD.open("/" + id + ".lst", FILE_WRITE);
-      http.writeToStream(&f);
-      f.close();
-      http.end();
-      // Download each track on playlist
-      f = SD.open("/" + id + ".lst", FILE_READ);
-      while(f.available()) {
-        auto track = f.readStringUntil('\n');
-        Serial.println("Downloading '"+track+"'...");
-        http.begin(baseUrl+"/"+track);
-        int httpCode = http.GET();
-        if(httpCode != 200) {
-          voiceError("error");
-        }
-        auto f = SD.open("/"+track, FILE_WRITE);
-        http.writeToStream(&f);
-        f.close();
-        http.end();
-      }
-      f.seek(0);
     }
     while(f.available()) {
       playlist.push_back(f.readStringUntil('\n'));
     }
     f.close();
+    
+    // start playlist update in background
+    playlistUpdateInBackgbround = true;
+    playlistUpdater = std::thread(updatePlaylist);
 
     // Start playing first track
     if(ulp_last_card_id != active_card_id) {
