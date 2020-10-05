@@ -19,6 +19,7 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <HTTPClient.h>
 
 #include "esp_deep_sleep.h"
 #include "nvs.h"
@@ -40,6 +41,7 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 //String ssid =     "****";
 //String password = "****";
 //String updateCard = "<cardIdToActivateWifiUpload>";
+//String baseUrl = "http://url.to.download.new.card.content"
 #include "wifi-key.h"
 
 #include "Button.h"
@@ -131,8 +133,6 @@ void setupOTA() {
     isUpdateMode = true;
     ArduinoOTA.begin();
     Serial.println("Update mode enabled.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
 }
 
 /**************************************************************************************************************/
@@ -328,6 +328,7 @@ void IRAM_ATTR onTimer() {
 
 void connectWifi() {
   if(WiFi.status() != WL_CONNECTED) {
+    Serial.println("Connecting WIFI...");
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), password.c_str());
     size_t cTimeOut = 0;
@@ -337,6 +338,8 @@ void connectWifi() {
       }
       delay(500);
     }
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
   }
 }
 
@@ -403,7 +406,39 @@ void loop() {
     // Read playlist from SD card
     auto f = SD.open("/" + id + ".lst", FILE_READ);
     if(!f) {
-      voiceError("unknown_id");
+      connectWifi();
+      HTTPClient http;
+      auto url = baseUrl+"/"+id+".lst";
+      Serial.println("Attempting url: "+url);
+      http.begin(url);
+      int httpCode = http.GET();
+      if(httpCode != 200) {
+        Serial.print("Http error: ");
+        Serial.println(httpCode);
+        voiceError("unknown_id");
+      }
+      Serial.println("Found online, starting download...");
+      // Download playlist
+      auto f = SD.open("/" + id + ".lst", FILE_WRITE);
+      http.writeToStream(&f);
+      f.close();
+      http.end();
+      // Download each track on playlist
+      f = SD.open("/" + id + ".lst", FILE_READ);
+      while(f.available()) {
+        auto track = f.readStringUntil('\n');
+        Serial.println("Downloading '"+track+"'...");
+        http.begin(baseUrl+"/"+track);
+        int httpCode = http.GET();
+        if(httpCode != 200) {
+          voiceError("error");
+        }
+        auto f = SD.open("/"+track, FILE_WRITE);
+        http.writeToStream(&f);
+        f.close();
+        http.end();
+      }
+      f.seek(0);
     }
     while(f.available()) {
       playlist.push_back(f.readStringUntil('\n'));
