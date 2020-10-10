@@ -339,14 +339,6 @@ restart:
             // read from http stream
             httpTrack.read(buffer, nBytesToRead);
 
-            // throttle SD writes if audio buffer is low
-            size_t timeout=0;
-            while(audio.isRunning() && !isStreaming && !isMessage && audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
-              Serial.println(audio.inBufferFilled());
-              if(++timeout > 20) break;
-              delay(10);
-            }
-
             // write to SD card
             f.write(buffer, nBytesToRead);
           }
@@ -757,9 +749,6 @@ void play() {
   }
   
   Serial.println("Play: "+uri);
-  Serial.println(playlistUpdateRunning);
-  Serial.println(playlistUpdateTracksDone);
-  Serial.println(theTrack);
   
   if(!uri.startsWith("http://") && !uri.startsWith("https://")) {
     if(isStreaming) disconnectWifi();
