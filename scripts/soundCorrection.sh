@@ -11,11 +11,11 @@ for i in * ; do
   fi
   echo $i
   if [ -f "original/$i" ]; then
-    echo "Already converted, skipping."
+    echo "Already converted, using original file as source"
   else
     mv "$i" "original/$i"
-    sox "original/$i" "$i" vol 0.1 treble 20 1000
   fi
+  sox "original/$i" "$i" vol 0.1 treble 5 1000
 done
 echo "Done."
 
