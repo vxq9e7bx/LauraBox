@@ -101,7 +101,8 @@ size_t track{0};
 hw_timer_t *timer{nullptr};
 
 uint32_t active_card_id{0};
-bool isStreaming{false};
+std::atomic<bool> isStreaming{false};
+std::atomic<bool> isMessage{false};
 
 void IRAM_ATTR onTimer();
 
@@ -110,6 +111,7 @@ bool isUpdateMode{false};
 std::atomic<bool> playlistUpdateRunning;
 std::atomic<bool> playlistUpdateError;
 std::atomic<bool> playlistUpdateDone;
+std::atomic<size_t> playlistUpdateTracksDone;
 
 std::atomic<size_t> wifiUseCount;
 bool connectWifi(bool required=true);
@@ -123,7 +125,7 @@ uint8_t buffer[blockSize];
 
 const int maxPathLength = 512;
 
-const int minBytesAudioBufferWhileDownload = 4096;
+const int minBytesAudioBufferWhileDownload = 6000;
 
 /**************************************************************************************************************/
 
@@ -195,14 +197,14 @@ restart:
 
     String id = String(active_card_id, HEX);
     WiFiClient c;
-    HttpClient http(c, serverAddress, 80);
+    HttpClient httpManifest(c, serverAddress, 80);
   
     // download playlist
     auto url = "/"+id+".lst.manifest";
     Serial.println("Attempting url: "+url);
   
-    http.get(url);
-    int httpCode = http.responseStatusCode();
+    httpManifest.get(url);
+    int httpCode = httpManifest.responseStatusCode();
     if(httpCode < 200 && httpCode > 299) {
       Serial.print("Http error: ");
       Serial.println(httpCode);
@@ -212,7 +214,7 @@ restart:
       continue;
     }
     Serial.println("Found online, starting download...");
-    auto body = http.responseBody();
+    auto body = httpManifest.responseBody();
     if(body == "NOT FOUND\n") {
       Serial.println("Not found!");
       disconnectWifi();
@@ -220,6 +222,7 @@ restart:
       playlistUpdateRunning = false;
       continue;
     }
+    httpManifest.stop();
   
     // split body into list
     char* copy = strdup(body.c_str());
@@ -252,15 +255,22 @@ restart:
     }
     Serial.println("NEWLIST END");
 
+    // check if playlist already exists (and is not empty)
+    bool listWasPresentBefore = false;
+    if(SD.exists("/" + id + ".lst")) {
+      auto f = SD.open("/" + id + ".lst", FILE_READ);
+      if(f.size() > 3) listWasPresentBefore = true;
+      f.close();
+    }
+
     // if playlist file does not yet exist, write it out now, so the playback can begin as soon as the first track is there
-    bool listWasPresentBefore = true;
-    if(!SD.exists("/" + id + ".lst")) {
-      listWasPresentBefore = false;
+    if(!listWasPresentBefore) {
       auto f = SD.open("/" + id + ".lst", FILE_WRITE);
       for(auto &track : newlist) {
         f.println(track);
       }
       f.close();
+      Serial.println("playlist stored");
     }    
     
     // download each track on playlist, if file size does not match or not yet existing
@@ -281,13 +291,13 @@ restart:
       }
 
       if(download) {
-
         // Start download of the track file
-        http.get(urlencode("/"+track));
-        int httpCode = http.responseStatusCode();
+        HttpClient httpTrack(c, serverAddress, 80);
+        httpTrack.get(urlencode("/"+track));
+        int httpCode = httpTrack.responseStatusCode();
         if(httpCode >= 200 && httpCode <= 299) {
-          http.skipResponseHeaders();
-          auto bodyLen = http.contentLength();
+          httpTrack.skipResponseHeaders();
+          auto bodyLen = httpTrack.contentLength();
         
           Serial.println("Downloading '"+track+"'...");
           playlistChanged = true;
@@ -315,9 +325,9 @@ restart:
             // wait until enough data is available
             int nBytesToRead = min(bodyLen - i, blockSize);
             int itocount = 0;
-            while(http.available() < nBytesToRead) {
+            while(httpTrack.available() < nBytesToRead) {
               delay(100);
-              if(!http.connected() || ++itocount > 300) {
+              if(!httpTrack.connected() || ++itocount > 300) {
                 Serial.print("Error downloading '"+track+"': timeout.");
                 disconnectWifi();
                 playlistUpdateError = true;
@@ -327,19 +337,21 @@ restart:
             }
 
             // read from http stream
-            http.read(buffer, nBytesToRead);
+            httpTrack.read(buffer, nBytesToRead);
 
             // throttle SD writes if audio buffer is low
-            if(audio.isRunning() && !isStreaming && audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
-              while(audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
-                delay(10);
-              }
+            size_t timeout=0;
+            while(audio.isRunning() && !isStreaming && !isMessage && audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
+              Serial.println(audio.inBufferFilled());
+              if(++timeout > 20) break;
+              delay(10);
             }
 
             // write to SD card
             f.write(buffer, nBytesToRead);
           }
           f.close();
+          httpTrack.stop();
         }
         else {
           Serial.print("Error downloading '"+track+"': ");
@@ -349,8 +361,6 @@ restart:
           playlistUpdateRunning = false;
           goto restart;
         }
-  
-        http.stop();
       }
 
       // abort if battery low
@@ -362,6 +372,8 @@ restart:
         goto restart;
       }
 #endif
+
+      playlistUpdateTracksDone = i+1;
     }
 
     delay(1); // prevent idle task to never run and trigger the watchdog...
@@ -394,14 +406,21 @@ restart:
 
         // update current in-memory playlist
         {
-          std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+          std::unique_lock<std::mutex> lk(mx_playlist_and_track);
           playlist.clear();
           for(auto &t : newlist) playlist.push_back(t);
           // restart playlist from beginning
           // this is required so we do not play back a track which might be deleted in the next step
           track = 0;
           delay(500); // otherwise the track is not properly played...
-          play(playlist[track]);
+          if(playlist.size() < 1) {
+            lk.unlock();
+            voiceMessage("unknown_id");
+          }
+          else {
+            lk.unlock();
+            play();
+          }
         }
 
         delay(1); // prevent idle task to never run and trigger the watchdog...
@@ -650,6 +669,7 @@ void voiceError(String file) {
 
 void voiceMessage(String file) {
   Serial.println("Message: "+file);
+  isMessage = true;
 
   digitalWrite(AMP_ENA, HIGH);
 
@@ -657,15 +677,18 @@ void voiceMessage(String file) {
     Serial.println("SPIFFS Mount Failed");
     powerOff();
   }
-  
-  std::lock_guard<std::recursive_mutex> lk(mx_audio);
 
-  audio.stopSong();
+  {
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
+    audio.stopSong();
+  }
   while(audio.isRunning()) delay(1);
 
-  audio.setVolume(2);
-
-  audio.connecttoFS(SPIFFS, file+".mp3");
+  {
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
+    audio.setVolume(2);
+    audio.connecttoFS(SPIFFS, file+".mp3");
+  }
   while(audio.isRunning()) delay(1);
 }
 
@@ -709,24 +732,47 @@ void disconnectWifi() {
 
 /**************************************************************************************************************/
 
-void play(String uri) {
+void play() {
+  String uri;
+  size_t theTrack;
+  {
+    std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+    if(track > playlist.size()-1) {
+      Serial.println("Current track exceeds length of playlist.");
+      lk.unlock();
+      voiceError("error");
+    }
+    uri = playlist[track];
+    theTrack = track;
+  }
+
+  // wait until track is available, if download is in progress
+  if(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
+    Serial.println("Waiting for: "+uri);
+    voiceMessage("download");
+    while(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
+      delay(100);
+    }
+    delay(2000);
+  }
+  
   Serial.println("Play: "+uri);
-  std::lock_guard<std::recursive_mutex> lk(mx_audio);
+  Serial.println(playlistUpdateRunning);
+  Serial.println(playlistUpdateTracksDone);
+  Serial.println(theTrack);
+  
   if(!uri.startsWith("http://") && !uri.startsWith("https://")) {
     if(isStreaming) disconnectWifi();
-    isStreaming = false;
     if(!SD.exists("/"+uri)) {
-      Serial.println("Play waits for file...");
-      voiceMessage("download");
-      for(int i=0; i<30; ++i) {
-        if(playlistUpdateDone) break;
-        delay(1000);
-      }
+      voiceError("error");
     }
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
+    isStreaming = false;
     audio.connecttoSD(uri);
   }
   else {
     if(!isStreaming) connectWifi();
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
     isStreaming = true;
     audio.connecttohost(uri);
   }
@@ -789,10 +835,12 @@ void loop() {
 
     // Read playlist from SD card
     auto f = SD.open("/" + id + ".lst", FILE_READ);
-    if(!f || f.available() < 3) {
+    if(!f || f.size() < 3) {
       // download playlist for first time
+      playlistUpdateTracksDone = 0;
       playlistUpdateRunning = true;
-      while(playlistUpdateRunning && (!f || f.available() < 3)) {
+      ulp_last_card_id = 0;
+      while(playlistUpdateRunning && (!f || f.size() < 3)) {
         if(f) f.close();
         delay(500);
         f = SD.open("/" + id + ".lst", FILE_READ);
@@ -814,25 +862,38 @@ void loop() {
     f.close();
     
     // start playlist update in background
-    playlistUpdateRunning = true;
+    if(!playlistUpdateRunning) {
+      playlistUpdateTracksDone = playlist.size();
+      playlistUpdateRunning = true;
+    }
 
     // Start playing first track
     if(ulp_last_card_id != active_card_id) {
-      std::lock_guard<std::mutex> lk(mx_playlist_and_track);
-      track = 0;
-      play(playlist[track]);
+      {
+        std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+        track = 0;
+        if(playlist.size() < 1) {
+          Serial.println("No tracks on playlist.");
+          lk.unlock();
+          voiceError("unknown_id");
+        }
+      }
+      play();
     }
     else {
       Serial.println("Resuming.");
-      String trackFile;
       {
-        std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+        std::unique_lock<std::mutex> lk(mx_playlist_and_track);
         track = ulp_last_track;
-        trackFile = playlist[track];
+        if(playlist.size() < track+1) track = 0;
+        if(playlist.size() < 1) {
+          lk.unlock();
+          voiceError("unknown_id");
+        }
       }
       {
         std::lock_guard<std::recursive_mutex> lk(mx_audio);
-        play(trackFile);
+        play();
         audio.setFilePos(ulp_last_file_position);
       }
     }
@@ -854,19 +915,28 @@ void loop() {
     Serial.println(ulp_current_volume);
   }
   if(trackNext.isCommandPending()) {
-    std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+    std::unique_lock<std::mutex> lk(mx_playlist_and_track);
     if(track < playlist.size()-1) {
       ++track;
-      play(playlist[track]);
+      lk.unlock();
+      play();
     }
   }
   if(trackPrev.isCommandPending()) {
-    std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+    std::unique_lock<std::mutex> lk(mx_playlist_and_track);
     if(track > 0) {
       --track;
-      play(playlist[track]);
+      lk.unlock();
+      play();
     }
   }
+
+  // Shutdown if nothing is playing or downloading. Happens only in special cases like empty playlists, but would drain the battery.
+  if(!playlistUpdateRunning && !audio.isRunning()) {
+    Serial.println("Nothing playing or downloading.");
+    powerOff();
+  }
+  
 }
 
 /**************************************************************************************************************/
@@ -874,6 +944,13 @@ void loop() {
 void audio_eof_mp3(const char *info) { //end of file
   Serial.print("eof_mp3     ");
   Serial.println(info);
+
+  // special treatment if message was played back: do not proceed with playlist
+  if(isMessage) {
+    Serial.println("Message playback ended.");
+    isMessage = false;
+    return;
+  }
 
   // switch to next track of playlist
   std::unique_lock<std::mutex> lk(mx_playlist_and_track);
@@ -885,7 +962,8 @@ void audio_eof_mp3(const char *info) { //end of file
     lk.unlock();
     powerOff();
   }
-  play(playlist[track]);
+  lk.unlock();
+  play();
 }
 
 /**************************************************************************************************************/
