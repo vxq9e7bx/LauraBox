@@ -745,7 +745,6 @@ void play() {
     while(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
       delay(100);
     }
-    delay(2000);
   }
   
   Serial.println("Play: "+uri);
