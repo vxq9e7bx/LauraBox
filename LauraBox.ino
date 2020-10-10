@@ -6,7 +6,7 @@
 // https://github.com/schreibfaul1/ESP32-audioI2S/
 //
 
-#define TEST
+//#define TEST
 
 #include <thread>
 #include <atomic>
@@ -88,6 +88,7 @@ Button volumeDown{22};    // suppresses boot messages if low => acceptable side 
 Button trackNext{17};
 Button trackPrev{16};
 
+std::recursive_mutex mx_audio;
 Audio audio;
 SPIClass sdspi(VSPI);
 
@@ -122,12 +123,17 @@ uint8_t buffer[blockSize];
 
 const int maxPathLength = 512;
 
+const int minBytesAudioBufferWhileDownload = 4096;
+
 /**************************************************************************************************************/
 
 void runAudioLoop(void * parameter = nullptr) {
   delay(100);
   while(true) {
-    audio.loop();
+    {
+      std::lock_guard<std::recursive_mutex> lk(mx_audio);
+      audio.loop();
+    }
     delay(1);
   }
 }
@@ -296,6 +302,8 @@ restart:
           // Save file
           auto f = SD.open("/"+track, FILE_WRITE);
           for(auto i=0; i<bodyLen; i += blockSize) {
+
+            // print progress to serial
             if(i%(blockSize*100) == 0) {
               delay(1); // prevent idle task to never run and trigger the watchdog...
               Serial.print(i/1024);
@@ -303,6 +311,8 @@ restart:
               Serial.print(bodyLen/1024);
               Serial.println(" kiB");
             }
+
+            // wait until enough data is available
             int nBytesToRead = min(bodyLen - i, blockSize);
             int itocount = 0;
             while(http.available() < nBytesToRead) {
@@ -315,14 +325,19 @@ restart:
                 goto restart;
               }
             }
-            http.read(buffer, nBytesToRead);
-            f.write(buffer, nBytesToRead);
 
-            // throttle if audio buffer is low
-            /*if(audio.isRunning() && !isStreaming && audio.inBufferFilled() < 1024) {
-              Serial.println("Throttleing...");
-              while(audio.inBufferFilled() < 1024) delay(10);
-            }*/
+            // read from http stream
+            http.read(buffer, nBytesToRead);
+
+            // throttle SD writes if audio buffer is low
+            if(audio.isRunning() && !isStreaming && audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
+              while(audio.inBufferFilled() < minBytesAudioBufferWhileDownload) {
+                delay(10);
+              }
+            }
+
+            // write to SD card
+            f.write(buffer, nBytesToRead);
           }
           f.close();
         }
@@ -523,6 +538,25 @@ uint32_t readCardIdFromULP() {
 
 /**************************************************************************************************************/
 
+void clearSD() {
+  Serial.println("Resetting SD card...");
+  byte sd = 0;
+  digitalWrite(SD_CS, LOW);
+  size_t nRetry = 0;
+  while(sd != 255) {
+    sd = sdspi.transfer(255);
+    delay(10);
+    if(++nRetry > 100) {
+      Serial.println("Giving up!");
+      break;
+    }
+  }
+  delay(10);
+  digitalWrite(SD_CS, HIGH);
+}
+
+/**************************************************************************************************************/
+
 void setup() {
   wifiUseCount = 0;
   playlistUpdateError = false;
@@ -543,14 +577,20 @@ void setup() {
   audio.setPinout(I2S_SCK, I2S_LRCK, I2S_DOUT);
 
   // create task for audio loop (on a dedicated core)
+  std::lock_guard<std::recursive_mutex> lk(mx_audio);   // prevent audio loop until setup is complete
   xTaskCreatePinnedToCore(runAudioLoop, "runAudioLoop", 10000, NULL, 3, NULL, 0);
 
   // Setup SD card (done always to make sure SD card is in sleep mode after reset)
   Serial.printf("Setup SD\n");
   pinMode(SD_CS, OUTPUT);
+  size_t nRetrySD=0;
+retry_sd:
   digitalWrite(SD_CS, HIGH);
   sdspi.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
   if(!SD.begin(SD_CS)) {
+    clearSD();
+    sdspi.end();
+    if(++nRetrySD < 10) goto retry_sd;
     voiceError("error");
   }
 
@@ -617,6 +657,8 @@ void voiceMessage(String file) {
     Serial.println("SPIFFS Mount Failed");
     powerOff();
   }
+  
+  std::lock_guard<std::recursive_mutex> lk(mx_audio);
 
   audio.stopSong();
   while(audio.isRunning()) delay(1);
@@ -669,6 +711,7 @@ void disconnectWifi() {
 
 void play(String uri) {
   Serial.println("Play: "+uri);
+  std::lock_guard<std::recursive_mutex> lk(mx_audio);
   if(!uri.startsWith("http://") && !uri.startsWith("https://")) {
     if(isStreaming) disconnectWifi();
     isStreaming = false;
@@ -722,6 +765,7 @@ void loop() {
   if(active_card_id != detected_card_id) {
     if(detected_card_id == 0) {
       Serial.println("Card lost.");
+      std::lock_guard<std::recursive_mutex> lk(mx_audio);
       if(audio.isRunning()) audio.pauseResume();
 
       // store current position in RTC memory, to allow resuming if same card is read again
@@ -762,6 +806,7 @@ void loop() {
       auto track = f.readStringUntil('\n');
       Serial.println(track);
       if(track.length() > maxPathLength) continue;
+      if(track[track.length()-1] == '\r') track = track.substring(0, track.length()-1);
       std::lock_guard<std::mutex> lk(mx_playlist_and_track);
       playlist.push_back(track);
     }
@@ -779,22 +824,31 @@ void loop() {
     }
     else {
       Serial.println("Resuming.");
-      std::lock_guard<std::mutex> lk(mx_playlist_and_track);
-      track = ulp_last_track;
-      play(playlist[track]);
-      audio.setFilePos(ulp_last_file_position);
+      String trackFile;
+      {
+        std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+        track = ulp_last_track;
+        trackFile = playlist[track];
+      }
+      {
+        std::lock_guard<std::recursive_mutex> lk(mx_audio);
+        play(trackFile);
+        audio.setFilePos(ulp_last_file_position);
+      }
     }
   }
 
   // Check for button commands
   if(volumeUp.isCommandPending()) {
     if(ulp_current_volume < 4) ulp_current_volume++;
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
     audio.setVolume(ulp_current_volume);
     Serial.print("Volume up: ");
     Serial.println(ulp_current_volume);
   }
   if(volumeDown.isCommandPending()) {
     if(ulp_current_volume > 1) ulp_current_volume--;
+    std::lock_guard<std::recursive_mutex> lk(mx_audio);
     audio.setVolume(ulp_current_volume);
     Serial.print("Volume down: ");
     Serial.println(ulp_current_volume);
