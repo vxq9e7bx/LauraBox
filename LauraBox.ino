@@ -88,6 +88,12 @@ Button volumeDown{22};    // suppresses boot messages if low => acceptable side 
 Button trackNext{17};
 Button trackPrev{16};
 
+// Maximum allowed length of file names in playlist (to prevent buffer overflow in case of corrupted files)
+const int maxPathLength = 512;
+
+// Maximum number of minutes the cpu might run after waking up (to prevent battery drain if something is stuck)
+const unsigned int runMaxMinutes = 120;
+
 std::recursive_mutex mx_audio;
 Audio audio;
 SPIClass sdspi(VSPI);
@@ -123,9 +129,7 @@ String urlencode(String str);
 const int blockSize = 1024;
 uint8_t buffer[blockSize];
 
-const int maxPathLength = 512;
-
-const int minBytesAudioBufferWhileDownload = 6000;
+unsigned long idleTime = 0;
 
 /**************************************************************************************************************/
 
@@ -745,6 +749,7 @@ void play() {
     while(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
       delay(100);
     }
+    voiceMessage("download_finished");
   }
   
   Serial.println("Play: "+uri);
@@ -826,17 +831,30 @@ void loop() {
     if(!f || f.size() < 3) {
       // download playlist for first time
       playlistUpdateTracksDone = 0;
-      playlistUpdateRunning = true;
+      playlistUpdateRunning = true;   // this triggers the download in the other thread
       ulp_last_card_id = 0;
-      while(playlistUpdateRunning && (!f || f.size() < 3)) {
-        if(f) f.close();
+
+      // wait until download is complete, voice messages at start, at each finished track, and at the end
+      voiceMessage("download");
+      int t = 0;
+      while(playlistUpdateRunning) {
+        if(t != playlistUpdateTracksDone) {
+          voiceMessage("download_progress");
+          t = playlistUpdateTracksDone;
+        }
         delay(500);
-        f = SD.open("/" + id + ".lst", FILE_READ);
       }
+      voiceMessage("download_finished");
+
+      // download is complete, re-open playlist
+      if(f) f.close();
+      f = SD.open("/" + id + ".lst", FILE_READ);
       if(!f) {
         voiceError("unknown_id");
       }
     }
+
+    // read playlist from file
     Serial.println("TRACKLIST BEGIN");
     while(f.available()) {
       auto track = f.readStringUntil('\n');
@@ -921,7 +939,21 @@ void loop() {
 
   // Shutdown if nothing is playing or downloading. Happens only in special cases like empty playlists, but would drain the battery.
   if(!playlistUpdateRunning && !audio.isRunning()) {
-    Serial.println("Nothing playing or downloading.");
+    if(idleTime == 0) {
+      idleTime = millis();
+    }
+    else if(millis() - idleTime > 2000) {
+      Serial.println("Nothing playing or downloading.");
+      powerOff();
+    }
+  }
+  else {
+    idleTime = 0;
+  }
+
+  // Extra safety: limit maximum running time
+  if(millis() > 1000*60*runMaxMinutes) {
+    Serial.println("Maximum running time exceeded");
     powerOff();
   }
   
