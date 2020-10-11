@@ -591,7 +591,7 @@ void setup() {
   // create task for audio loop (on a dedicated core)
   std::lock_guard<std::recursive_mutex> lk(mx_audio);   // prevent audio loop until setup is complete
   xTaskCreatePinnedToCore(runAudioLoop, "runAudioLoop", 10000, NULL, 3, NULL, 0);
-  xTaskCreatePinnedToCore(limitRuntime, "limitRuntime",  2000, NULL, 0, NULL, 1);
+  xTaskCreatePinnedToCore(limitRuntime, "limitRuntime",  2000, NULL, 4, NULL, 1);
 
   // Setup SD card (done always to make sure SD card is in sleep mode after reset)
   Serial.printf("Setup SD\n");
@@ -646,8 +646,11 @@ retry_sd:
   delay(500);
   digitalWrite(AMP_ENA, HIGH);
 
+  // create task for main loop - we do not use the arduino loop(), because it makes problems if too much time is spent inside.
+  xTaskCreatePinnedToCore(runMainLoop, "runMainLoop",  10000, NULL, 0, NULL, 1);
+
   // create task for playlist update
-  xTaskCreatePinnedToCore(updatePlaylist, "updatePlaylist", 10000, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(updatePlaylist, "updatePlaylist", 10000, NULL, 0, NULL, 1);
 
   Serial.printf("Init complete.\n");
 }
@@ -769,174 +772,182 @@ void play() {
 
 /**************************************************************************************************************/
 
-void loop() {
+void runMainLoop(void *) {
+  Serial.printf("runMainLoop started.\n");
 
-#ifndef TEST
-  // Check if low battery
-  if(ulp_vbatt_low & 0xFFFF) {
-    voiceError("charge");
-  }
-#endif
-
-  // Handle update mode
-  if(isUpdateMode) {
-    ArduinoOTA.handle();
-  }
-
-  // read current card
-  auto detected_card_id = readCardIdFromULP();
-
-  // check for special update card
-  if(detected_card_id == updateCard) {
-    if(!isUpdateMode) {
-      setupOTA();
+  while(true) {
+    delay(10);
+  
+  #ifndef TEST
+    // Check if low battery
+    if(ulp_vbatt_low & 0xFFFF) {
+      voiceError("charge");
     }
-    return;
-  }
-
-#ifdef TEST
-  detected_card_id = 0xdeadbeef;
-#endif
-
-  // Check if card lost or changed. Will also be executed right after wakup from ULP.
-  if(active_card_id != detected_card_id) {
-    if(detected_card_id == 0) {
-      Serial.println("Card lost.");
-      std::lock_guard<std::recursive_mutex> lk(mx_audio);
-      if(audio.isRunning()) audio.pauseResume();
-
-      // store current position in RTC memory, to allow resuming if same card is read again
-      ulp_last_card_id = active_card_id;
-      ulp_last_track = track;
-      if(!isStreaming) {
-        ulp_last_file_position = audio.getFilePos();
+  #endif
+  
+    // Handle update mode
+    if(isUpdateMode) {
+      ArduinoOTA.handle();
+    }
+  
+    // read current card
+    auto detected_card_id = readCardIdFromULP();
+  
+    // check for special update card
+    if(detected_card_id == updateCard) {
+      if(!isUpdateMode) {
+        setupOTA();
+      }
+      continue;
+    }
+  
+  #ifdef TEST
+    detected_card_id = 0xdeadbeef;
+  #endif
+  
+    // Check if card lost or changed. Will also be executed right after wakup from ULP.
+    if(active_card_id != detected_card_id) {
+      if(detected_card_id == 0) {
+        Serial.println("Card lost.");
+        {
+          std::lock_guard<std::recursive_mutex> lk(mx_audio);
+          if(audio.isRunning() && !isMessage) audio.pauseResume();
+    
+          // store current position in RTC memory, to allow resuming if same card is read again
+          ulp_last_card_id = active_card_id;
+          ulp_last_track = track;
+          if(!isStreaming) {
+            ulp_last_file_position = audio.getFilePos();
+          }
+          else {
+            ulp_last_file_position = 0;
+          }
+        }
+        powerOff();
+      }
+  
+      active_card_id = detected_card_id;
+      String id = String(active_card_id, HEX);
+      Serial.print("Card detected: ");
+      Serial.print(id);
+      Serial.println(".");
+  
+  
+      // Read playlist from SD card
+      auto f = SD.open("/" + id + ".lst", FILE_READ);
+      if(!f || f.size() < 3) {
+        // download playlist for first time
+        playlistUpdateBlocksPlaying = true;
+        playlistUpdateRunning = true;   // this triggers the download in the other thread
+        ulp_last_card_id = 0;
+  
+        // wait until download is complete
+        while(playlistUpdateRunning) {
+          delay(500);
+        }
+  
+        // download is complete, re-open playlist
+        if(f) f.close();
+        f = SD.open("/" + id + ".lst", FILE_READ);
+        if(!f) {
+          voiceError("unknown_id");
+        }
+      }
+  
+      // read playlist from file
+      Serial.println("TRACKLIST BEGIN");
+      while(f.available()) {
+        auto track = f.readStringUntil('\n');
+        Serial.println(track);
+        if(track.length() > maxPathLength) continue;
+        if(track[track.length()-1] == '\r') track = track.substring(0, track.length()-1);
+        std::lock_guard<std::mutex> lk(mx_playlist_and_track);
+        playlist.push_back(track);
+      }
+      Serial.println("TRACKLIST END");
+      f.close();
+      
+      // start playlist update in background
+      playlistUpdateRunning = true;
+  
+      // Start playing first track
+      if(ulp_last_card_id != active_card_id) {
+        {
+          std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+          track = 0;
+          if(playlist.size() < 1) {
+            Serial.println("No tracks on playlist.");
+            lk.unlock();
+            voiceError("unknown_id");
+          }
+        }
+        play();
       }
       else {
-        ulp_last_file_position = 0;
-      }
-      powerOff();
-    }
-
-    active_card_id = detected_card_id;
-    String id = String(active_card_id, HEX);
-    Serial.print("Card detected: ");
-    Serial.print(id);
-    Serial.println(".");
-
-
-    // Read playlist from SD card
-    auto f = SD.open("/" + id + ".lst", FILE_READ);
-    if(!f || f.size() < 3) {
-      // download playlist for first time
-      playlistUpdateBlocksPlaying = true;
-      playlistUpdateRunning = true;   // this triggers the download in the other thread
-      ulp_last_card_id = 0;
-
-      // wait until download is complete
-      while(playlistUpdateRunning) {
-        delay(500);
-      }
-
-      // download is complete, re-open playlist
-      if(f) f.close();
-      f = SD.open("/" + id + ".lst", FILE_READ);
-      if(!f) {
-        voiceError("unknown_id");
-      }
-    }
-
-    // read playlist from file
-    Serial.println("TRACKLIST BEGIN");
-    while(f.available()) {
-      auto track = f.readStringUntil('\n');
-      Serial.println(track);
-      if(track.length() > maxPathLength) continue;
-      if(track[track.length()-1] == '\r') track = track.substring(0, track.length()-1);
-      std::lock_guard<std::mutex> lk(mx_playlist_and_track);
-      playlist.push_back(track);
-    }
-    Serial.println("TRACKLIST END");
-    f.close();
-    
-    // start playlist update in background
-    playlistUpdateRunning = true;
-
-    // Start playing first track
-    if(ulp_last_card_id != active_card_id) {
-      {
-        std::unique_lock<std::mutex> lk(mx_playlist_and_track);
-        track = 0;
-        if(playlist.size() < 1) {
-          Serial.println("No tracks on playlist.");
-          lk.unlock();
-          voiceError("unknown_id");
+        Serial.println("Resuming.");
+        {
+          std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+          track = ulp_last_track;
+          if(playlist.size() < track+1) track = 0;
+          if(playlist.size() < 1) {
+            lk.unlock();
+            voiceError("unknown_id");
+          }
+        }
+        {
+          std::lock_guard<std::recursive_mutex> lk(mx_audio);
+          play();
+          audio.setFilePos(ulp_last_file_position);
         }
       }
-      play();
+    }
+  
+    // Check for button commands
+    if(volumeUp.isCommandPending()) {
+      if(ulp_current_volume < maxVolume) ulp_current_volume++;
+      std::lock_guard<std::recursive_mutex> lk(mx_audio);
+      audio.setVolume(ulp_current_volume);
+      Serial.print("Volume up: ");
+      Serial.println(ulp_current_volume);
+    }
+    if(volumeDown.isCommandPending()) {
+      if(ulp_current_volume > 1) ulp_current_volume--;
+      std::lock_guard<std::recursive_mutex> lk(mx_audio);
+      audio.setVolume(ulp_current_volume);
+      Serial.print("Volume down: ");
+      Serial.println(ulp_current_volume);
+    }
+    if(trackNext.isCommandPending()) {
+      std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+      if(track < playlist.size()-1) {
+        ++track;
+        lk.unlock();
+        play();
+      }
+    }
+    if(trackPrev.isCommandPending()) {
+      std::unique_lock<std::mutex> lk(mx_playlist_and_track);
+      if(track > 0) {
+        --track;
+        lk.unlock();
+        play();
+      }
+    }
+  
+    // Shutdown if nothing is playing or downloading. Happens only in special cases like empty playlists, but would drain the battery.
+    if(!playlistUpdateRunning && !audio.isRunning()) {
+      if(idleTime == 0) {
+        idleTime = millis();
+      }
+      else if(millis() - idleTime > 2000) {
+        Serial.println("Nothing playing or downloading.");
+        powerOff();
+      }
     }
     else {
-      Serial.println("Resuming.");
-      {
-        std::unique_lock<std::mutex> lk(mx_playlist_and_track);
-        track = ulp_last_track;
-        if(playlist.size() < track+1) track = 0;
-        if(playlist.size() < 1) {
-          lk.unlock();
-          voiceError("unknown_id");
-        }
-      }
-      {
-        std::lock_guard<std::recursive_mutex> lk(mx_audio);
-        play();
-        audio.setFilePos(ulp_last_file_position);
-      }
+      idleTime = 0;
     }
-  }
 
-  // Check for button commands
-  if(volumeUp.isCommandPending()) {
-    if(ulp_current_volume < maxVolume) ulp_current_volume++;
-    std::lock_guard<std::recursive_mutex> lk(mx_audio);
-    audio.setVolume(ulp_current_volume);
-    Serial.print("Volume up: ");
-    Serial.println(ulp_current_volume);
-  }
-  if(volumeDown.isCommandPending()) {
-    if(ulp_current_volume > 1) ulp_current_volume--;
-    std::lock_guard<std::recursive_mutex> lk(mx_audio);
-    audio.setVolume(ulp_current_volume);
-    Serial.print("Volume down: ");
-    Serial.println(ulp_current_volume);
-  }
-  if(trackNext.isCommandPending()) {
-    std::unique_lock<std::mutex> lk(mx_playlist_and_track);
-    if(track < playlist.size()-1) {
-      ++track;
-      lk.unlock();
-      play();
-    }
-  }
-  if(trackPrev.isCommandPending()) {
-    std::unique_lock<std::mutex> lk(mx_playlist_and_track);
-    if(track > 0) {
-      --track;
-      lk.unlock();
-      play();
-    }
-  }
-
-  // Shutdown if nothing is playing or downloading. Happens only in special cases like empty playlists, but would drain the battery.
-  if(!playlistUpdateRunning && !audio.isRunning()) {
-    if(idleTime == 0) {
-      idleTime = millis();
-    }
-    else if(millis() - idleTime > 2000) {
-      Serial.println("Nothing playing or downloading.");
-      powerOff();
-    }
-  }
-  else {
-    idleTime = 0;
   }
   
 }
@@ -1045,4 +1056,11 @@ void limitRuntime(void *p) {
   delay(1000*60*runMaxMinutes);
   Serial.println("Maximum running time exceeded");
   powerOff();
+}
+
+
+/**************************************************************************************************************/
+
+void loop() {
+  delay(100);
 }
