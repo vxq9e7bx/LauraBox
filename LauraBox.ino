@@ -94,6 +94,9 @@ const int maxPathLength = 512;
 // Maximum number of minutes the cpu might run after waking up (to prevent battery drain if something is stuck)
 const unsigned int runMaxMinutes = 120;
 
+// Maximum allowed playback volume (cannot be bigger than 20)
+const unsigned int maxVolume = 8;
+
 std::recursive_mutex mx_audio;
 Audio audio;
 SPIClass sdspi(VSPI);
@@ -117,7 +120,7 @@ bool isUpdateMode{false};
 std::atomic<bool> playlistUpdateRunning;
 std::atomic<bool> playlistUpdateError;
 std::atomic<bool> playlistUpdateDone;
-std::atomic<size_t> playlistUpdateTracksDone;
+std::atomic<bool> playlistUpdateBlocksPlaying;
 
 std::atomic<size_t> wifiUseCount;
 bool connectWifi(bool required=true);
@@ -180,6 +183,7 @@ void setupOTA() {
     isUpdateMode = true;
     ArduinoOTA.begin();
     Serial.println("Update mode enabled.");
+    voiceMessage("OTA");
 }
 
 /**************************************************************************************************************/
@@ -190,6 +194,9 @@ restart:
     while(!playlistUpdateRunning) {
       delay(50);
     }
+
+    // flag whether the file downloaded is the first or not, allows to produce different voice messages
+    bool firstFile = true;
   
     // connect wifi
     if(!connectWifi(false)) {
@@ -295,6 +302,15 @@ restart:
       }
 
       if(download) {
+        // Play message
+        if(firstFile) {
+          firstFile = false;
+          voiceMessage("download");
+        }
+        else {
+          voiceMessage("download_progress");
+        }
+        
         // Start download of the track file
         HttpClient httpTrack(c, serverAddress, 80);
         httpTrack.get(urlencode("/"+track));
@@ -368,8 +384,6 @@ restart:
         goto restart;
       }
 #endif
-
-      playlistUpdateTracksDone = i+1;
     }
 
     delay(1); // prevent idle task to never run and trigger the watchdog...
@@ -400,27 +414,6 @@ restart:
 
         delay(1); // prevent idle task to never run and trigger the watchdog...
 
-        // update current in-memory playlist
-        {
-          std::unique_lock<std::mutex> lk(mx_playlist_and_track);
-          playlist.clear();
-          for(auto &t : newlist) playlist.push_back(t);
-          // restart playlist from beginning
-          // this is required so we do not play back a track which might be deleted in the next step
-          track = 0;
-          delay(500); // otherwise the track is not properly played...
-          if(playlist.size() < 1) {
-            lk.unlock();
-            voiceMessage("unknown_id");
-          }
-          else {
-            lk.unlock();
-            play();
-          }
-        }
-
-        delay(1); // prevent idle task to never run and trigger the watchdog...
-
         // search for orphaned tracks
         Serial.println("Checking for orphaned tracks...");
         // remove each track from oldlist which is present in the newlist
@@ -446,6 +439,10 @@ restart:
     disconnectWifi();
     playlistUpdateDone = true;
     playlistUpdateRunning = false;
+
+    if(playlistChanged) {
+      voiceMessage("download_finished");
+    }
   }
 }
 
@@ -594,6 +591,7 @@ void setup() {
   // create task for audio loop (on a dedicated core)
   std::lock_guard<std::recursive_mutex> lk(mx_audio);   // prevent audio loop until setup is complete
   xTaskCreatePinnedToCore(runAudioLoop, "runAudioLoop", 10000, NULL, 3, NULL, 0);
+  xTaskCreatePinnedToCore(limitRuntime, "limitRuntime",  2000, NULL, 0, NULL, 1);
 
   // Setup SD card (done always to make sure SD card is in sleep mode after reset)
   Serial.printf("Setup SD\n");
@@ -743,13 +741,11 @@ void play() {
   }
 
   // wait until track is available, if download is in progress
-  if(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
+  if(playlistUpdateBlocksPlaying) {
     Serial.println("Waiting for: "+uri);
-    voiceMessage("download");
-    while(playlistUpdateRunning && playlistUpdateTracksDone < theTrack+1) {
-      delay(100);
+    while(playlistUpdateBlocksPlaying) {
+      delay(500);
     }
-    voiceMessage("download_finished");
   }
   
   Serial.println("Play: "+uri);
@@ -792,7 +788,9 @@ void loop() {
 
   // check for special update card
   if(detected_card_id == updateCard) {
-    setupOTA();
+    if(!isUpdateMode) {
+      setupOTA();
+    }
     return;
   }
 
@@ -830,21 +828,14 @@ void loop() {
     auto f = SD.open("/" + id + ".lst", FILE_READ);
     if(!f || f.size() < 3) {
       // download playlist for first time
-      playlistUpdateTracksDone = 0;
+      playlistUpdateBlocksPlaying = true;
       playlistUpdateRunning = true;   // this triggers the download in the other thread
       ulp_last_card_id = 0;
 
-      // wait until download is complete, voice messages at start, at each finished track, and at the end
-      voiceMessage("download");
-      int t = 0;
+      // wait until download is complete
       while(playlistUpdateRunning) {
-        if(t != playlistUpdateTracksDone) {
-          voiceMessage("download_progress");
-          t = playlistUpdateTracksDone;
-        }
         delay(500);
       }
-      voiceMessage("download_finished");
 
       // download is complete, re-open playlist
       if(f) f.close();
@@ -868,10 +859,7 @@ void loop() {
     f.close();
     
     // start playlist update in background
-    if(!playlistUpdateRunning) {
-      playlistUpdateTracksDone = playlist.size();
-      playlistUpdateRunning = true;
-    }
+    playlistUpdateRunning = true;
 
     // Start playing first track
     if(ulp_last_card_id != active_card_id) {
@@ -907,7 +895,7 @@ void loop() {
 
   // Check for button commands
   if(volumeUp.isCommandPending()) {
-    if(ulp_current_volume < 4) ulp_current_volume++;
+    if(ulp_current_volume < maxVolume) ulp_current_volume++;
     std::lock_guard<std::recursive_mutex> lk(mx_audio);
     audio.setVolume(ulp_current_volume);
     Serial.print("Volume up: ");
@@ -949,12 +937,6 @@ void loop() {
   }
   else {
     idleTime = 0;
-  }
-
-  // Extra safety: limit maximum running time
-  if(millis() > 1000*60*runMaxMinutes) {
-    Serial.println("Maximum running time exceeded");
-    powerOff();
   }
   
 }
@@ -1054,4 +1036,13 @@ String urlencode(String str)
     }
     return encodedString;
     
+}
+
+/**************************************************************************************************************/
+
+void limitRuntime(void *p) {
+  // Extra safety: limit maximum running time
+  delay(1000*60*runMaxMinutes);
+  Serial.println("Maximum running time exceeded");
+  powerOff();
 }
