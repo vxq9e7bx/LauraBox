@@ -29,8 +29,10 @@ struct Button {
       }
 
       if(_pressed) {
-        ++_repeatCount;
-        if(_repeatCount < 50) return;
+        return;
+        // no repeat for easier control by toddlers...
+        //++_repeatCount;
+        //if(_repeatCount < 50) return;
       }
       _repeatCount = 0;
       _pressed = true;
@@ -46,4 +48,3 @@ struct Button {
     bool _pressed{false};
     size_t _repeatCount{0};
 };
-
