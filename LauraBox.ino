@@ -126,11 +126,6 @@ void IRAM_ATTR onTimer();
 
 bool isUpdateMode{false};
 
-std::atomic<bool> playlistUpdateRunning;
-std::atomic<bool> playlistUpdateError;
-std::atomic<bool> playlistUpdateDone;
-std::atomic<bool> playlistUpdateBlocksPlaying;
-
 std::atomic<size_t> wifiUseCount;
 bool connectWifi(bool required=true);
 void disconnectWifi();
@@ -197,22 +192,15 @@ void setupOTA() {
 
 /**************************************************************************************************************/
 
-void updatePlaylist(void * parameter = nullptr) {
-  while(true) {
-restart:
-    while(!playlistUpdateRunning) {
-      delay(50);
-    }
-
+void updatePlaylists(void * parameter = nullptr) {
     // flag whether the file downloaded is the first or not, allows to produce different voice messages
     bool firstFile = true;
   
     // connect wifi
     if(!connectWifi(false)) {
       Serial.printf("Could not connect to wifi!\n");
-      playlistUpdateError = true;
-      playlistUpdateRunning = false;
-      continue;
+      voiceMessage("error");
+      vTaskDelete(NULL);
     }
 
     String id = String(active_card_id, HEX);
@@ -228,19 +216,15 @@ restart:
     if(httpCode < 200 && httpCode > 299) {
       Serial.print("Http error: ");
       Serial.println(httpCode);
-      playlistUpdateError = true;
-      disconnectWifi();
-      playlistUpdateRunning = false;
-      continue;
+      voiceMessage("error");
+      vTaskDelete(NULL);
     }
     Serial.println("Found online, starting download...");
     auto body = httpManifest.responseBody();
     if(body == "NOT FOUND\n") {
       Serial.println("Not found!");
-      disconnectWifi();
-      playlistUpdateError = true;
-      playlistUpdateRunning = false;
-      continue;
+      voiceMessage("error");
+      vTaskDelete(NULL);
     }
     httpManifest.stop();
   
@@ -358,10 +342,8 @@ restart:
               delay(100);
               if(!httpTrack.connected() || ++itocount > 300) {
                 Serial.print("Error downloading '"+track+"': timeout.");
-                disconnectWifi();
-                playlistUpdateError = true;
-                playlistUpdateRunning = false;
-                goto restart;
+                voiceMessage("error");
+                vTaskDelete(NULL);
               }
             }
 
@@ -377,10 +359,8 @@ restart:
         else {
           Serial.print("Error downloading '"+track+"': ");
           Serial.println(httpCode);
-          disconnectWifi();
-          playlistUpdateError = true;
-          playlistUpdateRunning = false;
-          goto restart;
+          voiceMessage("error");
+          vTaskDelete(NULL);
         }
       }
 
@@ -388,9 +368,7 @@ restart:
 #ifndef TEST
       if(ulp_vbatt_low & 0xFFFF) {
         disconnectWifi();
-        playlistUpdateError = true;
-        playlistUpdateRunning = false;
-        goto restart;
+        vTaskDelete(NULL);
       }
 #endif
     }
@@ -444,31 +422,14 @@ restart:
     delay(1); // prevent idle task to never run and trigger the watchdog...
 
     Serial.println("Playlist update complete!");
-  
-    disconnectWifi();
-    playlistUpdateDone = true;
-    playlistUpdateRunning = false;
 
-    if(playlistChanged) {
-      voiceMessage("download_finished");
-    }
-  }
+    voiceMessage("download_finished");
+    vTaskDelete(NULL);
 }
 
 /**************************************************************************************************************/
 
 void powerOff() {
-  if(playlistUpdateRunning) {
-    Serial.printf("Waiting for playlist update to complete...\n");
-    int toCount = 0;
-    while(playlistUpdateRunning) {
-      delay(1000);
-      if(++toCount > 300) {  // 5 minutes
-        Serial.printf("Timout, enforcing power down.\n");
-        break;
-      }
-    }
-  }
   Serial.printf("Entering deep sleep\n\n");
 
   // shutdown SD card
@@ -580,9 +541,6 @@ void clearSD() {
 
 void setup() {
   wifiUseCount = 0;
-  playlistUpdateError = false;
-  playlistUpdateDone = false;
-  playlistUpdateRunning = false;
   
   Serial.begin(115200);
 
@@ -657,9 +615,6 @@ retry_sd:
 
   // create task for main loop - we do not use the arduino loop(), because it makes problems if too much time is spent inside.
   xTaskCreatePinnedToCore(runMainLoop, "runMainLoop",  10000, NULL, 0, NULL, 1);
-
-  // create task for playlist update
-  xTaskCreatePinnedToCore(updatePlaylist, "updatePlaylist", 10000, NULL, 0, NULL, 1);
 
   Serial.printf("Init complete.\n");
 }
@@ -752,13 +707,6 @@ void play() {
     theTrack = track;
   }
 
-  // wait until track is available, if download is in progress
-  if(playlistUpdateBlocksPlaying) {
-    Serial.println("Waiting for: "+uri);
-    while(playlistUpdateBlocksPlaying) {
-      delay(500);
-    }
-  }
   
   Serial.println("Play: "+uri);
   
@@ -806,6 +754,7 @@ void runMainLoop(void *) {
     if(detected_card_id == updateCard) {
       if(!isUpdateMode) {
         setupOTA();
+        xTaskCreatePinnedToCore(updatePlaylists, "updatePlaylists", 10000, NULL, 0, NULL, 1);
       }
       continue;
     }
@@ -845,22 +794,7 @@ void runMainLoop(void *) {
       // Read playlist from SD card
       auto f = SD.open("/" + id + ".lst", FILE_READ);
       if(!f || f.size() < 3) {
-        // download playlist for first time
-        playlistUpdateBlocksPlaying = true;
-        playlistUpdateRunning = true;   // this triggers the download in the other thread
-        ulp_last_card_id = 0;
-  
-        // wait until download is complete
-        while(playlistUpdateRunning) {
-          delay(500);
-        }
-  
-        // download is complete, re-open playlist
-        if(f) f.close();
-        f = SD.open("/" + id + ".lst", FILE_READ);
-        if(!f) {
-          voiceError("unknown_id");
-        }
+        voiceError("unknown_id");
       }
   
       // read playlist from file
@@ -875,9 +809,6 @@ void runMainLoop(void *) {
       }
       Serial.println("TRACKLIST END");
       f.close();
-      
-      // start playlist update in background
-      playlistUpdateRunning = true;
   
       // Start playing first track
       if(ulp_last_card_id != active_card_id) {
@@ -944,7 +875,7 @@ void runMainLoop(void *) {
     }
   
     // Shutdown if nothing is playing or downloading. Happens only in special cases like empty playlists, but would drain the battery.
-    if(!playlistUpdateRunning && !audio.isRunning()) {
+    if(!audio.isRunning()) {
       if(idleTime == 0) {
         idleTime = millis();
       }
