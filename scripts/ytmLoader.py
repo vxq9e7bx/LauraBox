@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 # Change to playlist ID to download. Can be extracted from the URL: https://music.youtube.com/playlist?list=<PlaylistID>
-PlaylistID="PLL-zy2w69Cx-u2nlxPxZTRlM2YNN8xktW"
+PlaylistID="PLL-zy2w69Cx8oIkQGi8-QNoLWdQ7lYLhZ"
 
 from ytmusicapi import YTMusic
 import os

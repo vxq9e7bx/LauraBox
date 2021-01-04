@@ -1,8 +1,11 @@
 #!/bin/bash
-if [ -z "$1" -o -z "$2" ]; then
+if [ -z "$1" ]; then
   echo "Usage:"
-  echo "makeManifest.sh <directory> <cardId>"
+  echo "makeManifest.sh <directory>"
   exit 1
 fi
-find "$1" -mindepth 1 -maxdepth 1 -type f > "$2.lst"
-while read i ; do stat -c '%s %n' "$i" ; done < "$2.lst" > "$2.lst.manifest"
+cd "$1" || exit 1
+TMPFILE=`mktemp`
+find -mindepth 1 -maxdepth 2 -type f -name \*.mp3 -o -name \*.lst | sed -e 's_^./__' > "$TMPFILE"
+while read i ; do stat -c '%s %n' "$i" ; done < "$TMPFILE" > "0.lst.manifest"
+rm "$TMPFILE"
