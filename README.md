@@ -8,7 +8,7 @@ A children's juke box controlled by RFID tags
 * Playlist selected though RFID tag
 * Four buttons: volume +/-, next/previous track
 * Intuitive pause functionality by removing the RFID tag and putting it back in place to resume
-* Battery powered
+* Battery powered, can play while charging
 * WiFi download of now MP3s and playlists
 * Firmware upgrade via WiFi
 * Long standby time (several month)
