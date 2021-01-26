@@ -50,7 +50,11 @@ Please have a look at the header of the Arduino sketch for instructions how to b
 <img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="The ready box" align="right"/>
 
 * The outer parts are made from plywood with a CNC mill.
+* The buttons are also made from wood, which creates a uniform look.
+* The wood is finished with wood wax.
 * The holder for the battery and the charge controller are 3D printed.
+* The corners holding the electronics have nuts glued in from the bottom.
+* Spacers are required between the electronics and the top lid of the casing. Assembly is slightly tedious, but thanks to Wifi connectivity this needs not be done often.
 * The drilled holes for the sound to exit the box are too small, this degrades sound quality a bit unfortunately.
 
 ## Server setup for playlists and MP3 files
