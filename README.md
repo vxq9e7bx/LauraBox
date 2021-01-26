@@ -1,6 +1,8 @@
 # LauraBox
 A children's juke box controlled by RFID tags
 
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/complete_box.jpg" width="50%" alt="The ready box" align="right"/>
+
 ## Features:
 * Playback of user-defined MP3 playlists
 * Playlist selected though RFID tag
@@ -20,6 +22,7 @@ A children's juke box controlled by RFID tags
 * PAM8403 stereo amplifier
 * Pair of wideband speakers
 * 3.6V Li-ion battery with USB charge controller from a USB power bank
+* SD card to store MP3 files and playlists
 
 ## Firmware
 
@@ -32,4 +35,26 @@ It also uses the ulptool (https://github.com/duff2013/ulptool) to program the UL
 
 Please have a look at the header of the Arduino sketch for instructions how to build the firmware.
 
-##
+## Electronics
+
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_top.jpg" width="20%" alt="The ready box" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_bottom.jpg" width="20%" alt="The ready box" align="right"/>
+
+* Analogue part is well-separated from digital part.
+* Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers. It seems to work well like it is, though.
+* Some components (choke, analogue supply bypass capacitor) are quite overdimensioned, just to be on the safe side.
+* I am not an electronics engineer, surely one can do this better!
+
+## Mechanical parts
+
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="The ready box" align="right"/>
+
+* The outer parts are made from plywood with a CNC mill.
+* The holder for the battery and the charge controller are 3D printed.
+* The drilled holes for the sound to exit the box are too small, this degrades sound quality a bit unfortunately.
+
+## Server setup for playlists and MP3 files
+
+* A web server needs to be setup which provides playlists and MP3 files
+
+TODO: describe how to do that
