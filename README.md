@@ -1,5 +1,5 @@
 # LauraBox
-A children's juke box controlled by RFID tags
+A children's juke box controlled by RFID tags, based on an ESP32.
 
 <img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/complete_box.jpg" width="50%" alt="The ready box" align="right"/>
 
@@ -33,32 +33,65 @@ The firmware is based on Arduino and uses the following libraries:
 
 It also uses the ulptool (https://github.com/duff2013/ulptool) to program the ULP (ultra low power co-processor) of the ESP32. The ULP periodically queries the status of the RFID card, wakes the main CPU if a new card is detected, and informs the main CPU of the current card ID and when the card is lost.
 
-Please have a look at the header of the Arduino sketch for instructions how to build the firmware.
+Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from:
+```
+// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
+String ssid =     "****";
+String password = "****";
+String updateCard = <cardIdToActivateWifiUpload>;
+String baseUrl = "http://url.to.download.new.card.content"
+```
+
+The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix with `0x` for hex format) which will trigger entering the WiFi firmware update and playlist/MP3 download mode.
+
 
 ## Electronics
 
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_top.jpg" width="20%" alt="The ready box" align="right"/>
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_bottom.jpg" width="20%" alt="The ready box" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_top.jpg" width="20%" alt="Mainboard top view" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_bottom.jpg" width="20%" alt="Mainboard bottom view" align="right"/>
 
-* Analogue part is well-separated from digital part.
-* Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers. It seems to work well like it is, though.
+* Analogue part is well-separated from digital part, to avoid any influence of RFID or WiFi operation on sound quality.
+* This works well, there is no audible noise from RFID or WiFi.
+
+### Possible improvements:
+
+* Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers, because ground levels might be different. It seems to work well like it is, though.
 * Some components (choke, analogue supply bypass capacitor) are quite overdimensioned, just to be on the safe side.
-* I am not an electronics engineer, surely one can do this better!
+* Placement of some components was not smart:
+** The entire board (luckily a square) was rotated after production, because there was a collision of the choke with one of the speakers. As a consequence, the reset button is now to the front, which is a bit odd. No big deal, since it is just a small hole...
+** The serial programming connector was originally planned as an upright connector, so it can be reached while the board is inside the box. This collided with the RFID board, so I changed it to an angled connector. This is a bit unhandy, because it requires taking the board out when using it. Also no big deal, since there is WiFi firmware upgarade...
+* I am not an electronics engineer, surely one can do a number of other things better, too!
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/schematics.svg" width="80%" alt="Schematics"/>
+</p>
 
 ## Mechanical parts
 
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="The ready box" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="View inside opened box with mainboard removed" align="right"/>
 
 * The outer parts are made from plywood with a CNC mill.
 * The buttons are also made from wood, which creates a uniform look.
 * The wood is finished with wood wax.
 * The holder for the battery and the charge controller are 3D printed.
 * The corners holding the electronics have nuts glued in from the bottom.
-* Spacers are required between the electronics and the top lid of the casing. Assembly is slightly tedious, but thanks to Wifi connectivity this needs not be done often.
+* Spacers are required between the electronics and the top lid of the casing.
+* Speakers are secured with screws and nuts. To simplify the assembly, I have glued the nuts to the speakers.
+
+### Possible improvements:
+
 * The drilled holes for the sound to exit the box are too small, this degrades sound quality a bit unfortunately.
+* Assembly is slightly tedious due to the spacers between electronics and the lid, but thanks to Wifi connectivity this needs not be done often.
 
 ## Server setup for playlists and MP3 files
 
 * A web server needs to be setup which provides playlists and MP3 files
-
-TODO: describe how to do that
+* The web server needs to be reachable by the box when connected to the WiFi defined in `wifi-key.h` through the specified URI.
+* When detecting the special updateCard id, the firmware will read a file called `0.lst.manifest`, which contains a list of file sizes and names (one entry per line).
+* It will then check each entry whether the file exists on the SD card and its size matches. Any missing or wrong-sized file will be downloaded. Any extra file will be deleted.
+* Playlists need to be named after the card ID which should activate the play back of the list: `<cardId>.lst` (e.g. `deadbeef.lst` if `deadbeef` is a card id). They simply contain a plain list of MP3 files which should be played back in sequence.
+* To generate a playlist on a Linux system, use the script `scripts/makeList.sh`.
+* To generate or update the manifest, use the script `scripts/makeManifest.sh`.
+* Do not use non-ASCII characters in file names. Use the script `scripts/fileRenamer.sh` to rename files such that those characters are avoided.
+* To correct for the too small holes in the casing letting the sound out of the box, I use the script `scripts/soundCorrection.sh`. I would recommend rather making those holes bigger, but if you face similar issues this can be helpful.
+* If you have a Youtube Music account and want to download MP3 files from there to the box, have a look at the scripts `scripts/ytmSetup.py` and `scripts/ytmLoader.py` and modify them for your needs.
