@@ -6,9 +6,9 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 ## Features:
 * Playback of user-defined MP3 playlists
 * Playlist selected though RFID tag
-* Four buttons: volume +/-, next/previous track
-* Intuitive pause functionality by removing the RFID tag and putting it back in place to resume
 * Battery powered, can play while charging
+* Four buttons: volume +/-, next/previous track
+* Intuitive pause functionality by removing the RFID tag and putting it back in place to resume (no limit in pause time, no impact on battery life)
 * WiFi download of now MP3s and playlists
 * Firmware upgrade via WiFi
 * Long standby time (several month)
