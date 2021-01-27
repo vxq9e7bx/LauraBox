@@ -1,5 +1,5 @@
 # LauraBox
-A children's juke box controlled by RFID tags
+A children's juke box controlled by RFID tags, based on an ESP32.
 
 <img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/complete_box.jpg" width="50%" alt="The ready box" align="right"/>
 
