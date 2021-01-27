@@ -76,6 +76,7 @@ The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix wi
 * The holder for the battery and the charge controller are 3D printed.
 * The corners holding the electronics have nuts glued in from the bottom.
 * Spacers are required between the electronics and the top lid of the casing.
+* Speakers are secured with screws and nuts. To simplify the assembly, I have glued the nuts to the speakers.
 
 ### Possible improvements:
 
@@ -85,5 +86,12 @@ The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix wi
 ## Server setup for playlists and MP3 files
 
 * A web server needs to be setup which provides playlists and MP3 files
-
-TODO: describe how to do that
+* The web server needs to be reachable by the box when connected to the WiFi defined in `wifi-key.h` through the specified URI.
+* When detecting the special updateCard id, the firmware will read a file called `0.lst.manifest`, which contains a list of file sizes and names (one entry per line).
+* It will then check each entry whether the file exists on the SD card and its size matches. Any missing or wrong-sized file will be downloaded. Any extra file will be deleted.
+* Playlists need to be named after the card ID which should activate the play back of the list: `<cardId>.lst` (e.g. `deadbeef.lst` if `deadbeef` is a card id). They simply contain a plain list of MP3 files which should be played back in sequence.
+* To generate a playlist on a Linux system, use the script `scripts/makeList.sh`.
+* To generate or update the manifest, use the script `scripts/makeManifest.sh`.
+* Do not use non-ASCII characters in file names. Use the script `scripts/fileRenamer.sh` to rename files such that those characters are avoided.
+* To correct for the too small holes in the casing letting the sound out of the box, I use the script `scripts/soundCorrection.sh`. I would recommend rather making those holes bigger, but if you face similar issues this can be helpful.
+* If you have a Youtube Music account and want to download MP3 files from there to the box, have a look at the scripts `scripts/ytmSetup.py` and `scripts/ytmLoader.py` and modify them for your needs.
