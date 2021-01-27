@@ -33,7 +33,17 @@ The firmware is based on Arduino and uses the following libraries:
 
 It also uses the ulptool (https://github.com/duff2013/ulptool) to program the ULP (ultra low power co-processor) of the ESP32. The ULP periodically queries the status of the RFID card, wakes the main CPU if a new card is detected, and informs the main CPU of the current card ID and when the card is lost.
 
-Please have a look at the header of the Arduino sketch for instructions how to build the firmware.
+Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from:
+```
+// Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
+String ssid =     "****";
+String password = "****";
+String updateCard = <cardIdToActivateWifiUpload>;
+String baseUrl = "http://url.to.download.new.card.content"
+```
+
+The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix with `0x` for hex format) which will trigger entering the WiFi firmware update and playlist/MP3 download mode.
+
 
 ## Electronics
 
