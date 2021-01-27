@@ -75,8 +75,12 @@ The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix wi
 * The wood is finished with wood wax.
 * The holder for the battery and the charge controller are 3D printed.
 * The corners holding the electronics have nuts glued in from the bottom.
-* Spacers are required between the electronics and the top lid of the casing. Assembly is slightly tedious, but thanks to Wifi connectivity this needs not be done often.
+* Spacers are required between the electronics and the top lid of the casing.
+
+### Possible improvements:
+
 * The drilled holes for the sound to exit the box are too small, this degrades sound quality a bit unfortunately.
+* Assembly is slightly tedious due to the spacers between electronics and the lid, but thanks to Wifi connectivity this needs not be done often.
 
 ## Server setup for playlists and MP3 files
 
