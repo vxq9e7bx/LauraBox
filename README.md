@@ -37,17 +37,21 @@ Please have a look at the header of the Arduino sketch for instructions how to b
 
 ## Electronics
 
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_top.jpg" width="20%" alt="The ready box" align="right"/>
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_bottom.jpg" width="20%" alt="The ready box" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_top.jpg" width="20%" alt="Mainboard top view" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/mainboard_bottom.jpg" width="20%" alt="Mainboard bottom view" align="right"/>
 
 * Analogue part is well-separated from digital part.
 * Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers. It seems to work well like it is, though.
 * Some components (choke, analogue supply bypass capacitor) are quite overdimensioned, just to be on the safe side.
 * I am not an electronics engineer, surely one can do this better!
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/schematics.svg" width="80%" alt="Schematics"/>
+</p>
+
 ## Mechanical parts
 
-<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="The ready box" align="right"/>
+<img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="View inside opened box with mainboard removed" align="right"/>
 
 * The outer parts are made from plywood with a CNC mill.
 * The buttons are also made from wood, which creates a uniform look.
