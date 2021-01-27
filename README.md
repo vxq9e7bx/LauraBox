@@ -53,7 +53,7 @@ The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix wi
 * Analogue part is well-separated from digital part, to avoid any influence of RFID or WiFi operation on sound quality.
 * This works well, there is no audible noise from RFID or WiFi.
 
-## Possible improvements:
+### Possible improvements:
 
 * Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers, because ground levels might be different. It seems to work well like it is, though.
 * Some components (choke, analogue supply bypass capacitor) are quite overdimensioned, just to be on the safe side.
