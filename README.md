@@ -67,7 +67,6 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 * Some things may be a bit cheated: digital signals (I2S etc.) going to the analogue side should better be decoupled with opto-couplers, because ground levels might be different. It seems to work well like it is, though.
 * Some components (choke, analogue supply bypass capacitor) are quite overdimensioned, just to be on the safe side.
 * Placement of some components was not smart:
-  * The entire board (luckily a square) was rotated after production, because there was a collision of the choke with one of the speakers. As a consequence, the reset button is now to the front, which is a bit odd. No big deal, since it is just a small hole...
   * The serial programming connector was originally planned as an upright connector, so it can be reached while the board is inside the box. This collided with the RFID board, so I changed it to an angled connector. This is a bit unhandy, because it requires taking the board out when using it. Also no big deal, since there is WiFi firmware upgarade...
 * I am not an electronics engineer, surely one can do a number of other things better, too!
 
