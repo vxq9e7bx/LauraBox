@@ -58,8 +58,9 @@ extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 // Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
 //String ssid =     "****";
 //String password = "****";
-//String updateCard = "<cardIdToActivateWifiUpload>";
+//String updateCard = <cardIdToActivateWifiUpload>;
 //String baseUrl = "http://url.to.download.new.card.content"
+// Note: <cardIdToActivateWifiUpload> must be an interger value. If you specify it as a hex code, prefix it with "0x".
 #include "wifi-key.h"
 
 #include "Button.h"
