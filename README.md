@@ -97,7 +97,7 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 
 * A web server needs to be setup which provides playlists and MP3 files
 * The web server needs to be reachable by the box when connected to the WiFi defined in `wifi-key.h` through the specified URI.
-* When detecting the special updateCard id, the firmware will read a file called `0.lst.manifest`, which contains a list of file sizes and names (one entry per line).
+* When detecting the special `updateCard`, the firmware will download a file called `0.lst.manifest`, which contains a list of file sizes and names (one entry per line).
 * It will then check each entry whether the file exists on the SD card and its size matches. Any missing or wrong-sized file will be downloaded. Any extra file will be deleted.
 * Playlists need to be named after the card ID which should activate the play back of the list: `<cardId>.lst` (e.g. `deadbeef.lst` if `deadbeef` is a card id). They simply contain a plain list of MP3 files which should be played back in sequence.
 * To generate a playlist on a Linux system, use the script `scripts/makeList.sh`.
