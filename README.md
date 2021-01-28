@@ -80,7 +80,8 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 <img src="https://raw.githubusercontent.com/mhier/LauraBox/master/images/inside.jpg" width="30%" alt="View inside opened box with mainboard removed" align="right"/>
 
 * The outer parts are made from plywood with a CNC mill.
-* The buttons are also made from wood, which creates a uniform look.
+  * Don't look to close at my work. This was the first time for me do build such a case with my CNC mill, which is more like a 3D printer that can also mill...
+* The buttons are also made from wood, which creates a uniform look. The reset button can be triggered with a paper clip.
 * The wood is finished with wood wax.
 * The holder for the battery and the charge controller are 3D printed.
 * The corners holding the electronics have nuts glued in from the bottom.
