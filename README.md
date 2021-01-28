@@ -5,10 +5,10 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 
 ## Features:
 * Playback of user-defined MP3 playlists
-* Playlist selected though RFID tag
-* Four buttons: volume +/-, next/previous track
-* Intuitive pause functionality by removing the RFID tag and putting it back in place to resume
+* Playlist selected though RFID tag. Cheap RFID stickers can be placed on any 3D printed model.
 * Battery powered, can play while charging
+* Four buttons: volume +/-, next/previous track
+* Intuitive pause functionality by removing the RFID tag and putting it back on to resume (no limit in pause time, no impact on battery life)
 * WiFi download of now MP3s and playlists
 * Firmware upgrade via WiFi
 * Long standby time (several month)
@@ -24,6 +24,10 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 * 3.6V Li-ion battery with USB charge controller from a USB power bank
 * SD card to store MP3 files and playlists
 
+## Why use the ESP32?
+
+At first I was considering building the box based on a Raspberry Pi. I had an old first generation Pi lying around unused, so I though it would be a good way of using it. I was immediately disappointed by its sound quality. Although this is significantly better on newer models, I learned another lession: The power consumption of a Raspberry Pi is very high, and it takes a long time to boot. Keeping it always running to wait for an RFID card to be detected is out of the question, since I wanted it to run from battery. Adding a small microcontroller (I though of some ATMega) to switch on the Pi only when a card is detected would result in long wait times until the music starts playing. Also the power consumption while playing would be still quite high. A Raspberry Pi typically uses 300 to 500 mA, while an ESP32 just takes a few mA when WiFi is disabled. After short investigation I found the ESP32-audioI2S Arduino library. This makes playback of audio using an ESP32 super easy. Thanks to the ultra low power co-processor of the ESP32 it is possible to cut down the power consumption in sleep mode to around 0.5mA-1.0mA on average (incl. periodic wakeups and RFID reads), which gives you plenty of standby time on battery.
+
 ## Firmware
 
 The firmware is based on Arduino and uses the following libraries:
@@ -31,9 +35,9 @@ The firmware is based on Arduino and uses the following libraries:
 * ArduinoOTA (from Arduino library manager)
 * ArduinoHttpClient (from Arduino library manager)
 
-It also uses the ulptool (https://github.com/duff2013/ulptool) to program the ULP (ultra low power co-processor) of the ESP32. The ULP periodically queries the status of the RFID card, wakes the main CPU if a new card is detected, and informs the main CPU of the current card ID and when the card is lost.
+It also uses the ulptool (https://github.com/duff2013/ulptool) to program the ULP (ultra low power co-processor) of the ESP32.
 
-Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from:
+Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from (see section "Server setup for playlists and MP3 files"):
 ```
 // Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
 String ssid =     "****";
@@ -44,6 +48,11 @@ String baseUrl = "http://url.to.download.new.card.content"
 
 The `<cardIdToActivateWifiUpload>` is the RFID card id (as an integer, prefix with `0x` for hex format) which will trigger entering the WiFi firmware update and playlist/MP3 download mode.
 
+### Usage of the ULP
+
+The ULP periodically queries the status of the RFID card, wakes the main CPU if a new card is detected, and informs the main CPU of the current card ID and when the card is lost. Writing this code was the actual fun part of this project. The ULP is a very minimalistic CPU, there isn't even a (complete) C compiler (I wasn't able to get the ULPCC compiler to work at all). So I had to write assembler code. There are only very few registers. The CPU doesn't even have a stack, but you can implement one (see `stack.s`). Since the ULP does not have access to the peripherals (they are powered down anyway), the SPI communication with the MRFC522 has to be bit-banged through a normal GPIO pin. To get this right, I have basically observed the communication of a normal Arduino program using an MRFC522 library with a logic analyzer. Then I have basically coded the same sequence of bytes into the ULP program (see `init_sequence` section in `rtcio.s`). The only goal was to read the ID of the card, which is luckily not so hard to achieve. Even though some error checking is missing, the communication seems to be pretty reliably.
+
+Since the ULP can also run when the main CPU is active, it will keep monitoring the presence of the RFID card and inform the main CPU when it is lost. The main CPU will then shutdown. An interesting fact about the ESP32 is also that the main CPU will be completely shutoff while in deep sleep mode, so when the ULP wakes it, it will boot the program from the very beginning (i.e. it will go through `setup()` again). Only by looking at the wakeup cause it is possible to distinguish this from a cold boot. All memory content (apart from the ULP accessible memory) will be lost, too. For this particular purpose this is perfectly fine, since the box does not need to store big amount of data while sleeping. Only the current volume setting and the last playback position is stored in the ULP memory.
 
 ## Electronics
 
