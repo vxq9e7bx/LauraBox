@@ -37,7 +37,7 @@ The firmware is based on Arduino and uses the following libraries:
 
 It also uses the ulptool (https://github.com/duff2013/ulptool) to program the ULP (ultra low power co-processor) of the ESP32.
 
-Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from:
+Please have a look at the header of the Arduino sketch for instructions how to build the firmware. You will also have to create the `wifi-key.h` header file containing your WiFi credentials and the URL to download MP3 and playlists from (see section "Server setup for playlists and MP3 files"):
 ```
 // Create wifi-key.h, put the following two definitions in and replace the **** with your WIFI credentials.
 String ssid =     "****";
