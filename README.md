@@ -103,5 +103,5 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 * To generate a playlist on a Linux system, use the script `scripts/makeList.sh`.
 * To generate or update the manifest, use the script `scripts/makeManifest.sh`.
 * Do not use non-ASCII characters in file names. Use the script `scripts/fileRenamer.sh` to rename files such that those characters are avoided.
-* To correct for the too small holes in the casing letting the sound out of the box, I use the script `scripts/soundCorrection.sh`. I would recommend rather making those holes bigger, but if you face similar issues this can be helpful.
+* To correct the sound distortions caused by the small holes in the casing letting, I use the script `scripts/soundCorrection.sh`. I would recommend rather making those holes bigger, but if you face similar issues this can be helpful.
 * If you have a Youtube Music account and want to download MP3 files from there to the box, have a look at the scripts `scripts/ytmSetup.py` and `scripts/ytmLoader.py` and modify them for your needs.
