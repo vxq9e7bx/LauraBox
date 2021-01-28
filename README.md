@@ -99,7 +99,8 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 * The web server needs to be reachable by the box when connected to the WiFi defined in `wifi-key.h` through the specified URI.
 * When detecting the special `updateCard`, the firmware will download a file called `0.lst.manifest`, which contains a list of file sizes and names (one entry per line).
 * It will then check each entry whether the file exists on the SD card and its size matches. Any missing or wrong-sized file will be downloaded. Any extra file will be deleted.
-* Playlists need to be named after the card ID which should activate the play back of the list: `<cardId>.lst` (e.g. `deadbeef.lst` if `deadbeef` is a card id). They simply contain a plain list of MP3 files which should be played back in sequence.
+* Playlists need to be named after the card ID which should activate the play back of the list: `<cardId>.lst` (e.g. `deadbeef.lst` if `deadbeef` is a card id). They simply contain a plain list of MP3 files which should be played back in sequence. The playlist file and all MP3s need to be in the manifest file, so they are properly downloaded.
+* During playback, there normally is no WiFi connection to safe power. It is possible though to have web radio streams in the playlists. If a playlist entry starts with `http://`, WiFi will be activated before the stream is started. Note that this will work only with MP3-based streams, and it will reduce the battery life considerably.
 * To generate a playlist on a Linux system, use the script `scripts/makeList.sh`.
 * To generate or update the manifest, use the script `scripts/makeManifest.sh`.
 * Do not use non-ASCII characters in file names. Use the script `scripts/fileRenamer.sh` to rename files such that those characters are avoided.
