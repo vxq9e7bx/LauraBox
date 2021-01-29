@@ -21,7 +21,7 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 * PCM5102 I2S stereo audio DAC
 * PAM8403 stereo amplifier
 * Pair of wideband speakers
-* 3.6V Li-ion battery with USB charge controller from a USB power bank
+* 3.6V Li-ion battery with USB charge controller from a USB power bank (2x 18650-type cells with 2500 mAh)
 * SD card to store MP3 files and playlists
 
 ## Why use the ESP32?
