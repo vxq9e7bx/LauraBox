@@ -12,7 +12,7 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 * WiFi download of now MP3s and playlists
 * Firmware upgrade via WiFi
 * Long standby time (several month)
-* Long play time (around 20 hours)
+* Long play time (many hours, if not days)
 * Toddler proof :-)
 
 ## Main components
@@ -27,6 +27,16 @@ A children's juke box controlled by RFID tags, based on an ESP32.
 ## Why use the ESP32?
 
 At first I was considering building the box based on a Raspberry Pi. I had an old first generation Pi lying around unused, so I though it would be a good way of using it. I was immediately disappointed by its sound quality. Although this is significantly better on newer models, I learned another lession: The power consumption of a Raspberry Pi is very high, and it takes a long time to boot. Keeping it always running to wait for an RFID card to be detected is out of the question, since I wanted it to run from battery. Adding a small microcontroller (I though of some ATMega) to switch on the Pi only when a card is detected would result in long wait times until the music starts playing. Also the power consumption while playing would be still quite high. A Raspberry Pi typically uses 300 to 500 mA, while an ESP32 just takes a few mA when WiFi is disabled. After short investigation I found the ESP32-audioI2S Arduino library. This makes playback of audio using an ESP32 super easy. Thanks to the ultra low power co-processor of the ESP32 it is possible to cut down the power consumption in sleep mode to around 0.5mA-1.0mA on average (incl. periodic wakeups and RFID reads), which gives you plenty of standby time on battery.
+
+## Power supply
+
+For power supply I have used an old USB power bank which I no longer needed. It has two 18650-typed cells with each 2500 mAh and a USB charge controller with an integrated boost converted to generate 5V from the ~3.6 V battery voltage (the cells are in parallel). The 5V USB voltage is not usable to power a very low power device, since the boost converter switches off if too little current is drawn. Since the electronics anyways runs on 3.3 V, the battery voltage is used without the boost converter directly. Since the voltage can be as high as 4 V or even higher when the battery is fully chaged, and the ESP32 has a maximum voltage of 3.6 V, a voltage regulator is required. I have decided for a MaxLinear XRP6272, since it has a very low quiescent current, a quite low dropout voltage and is able to provide a high enough current so that WiFi will work without problems.
+
+The PCM5102 has unfortunately a relatively high quiescent current, hence I decided to use two XRP6272: one for the ESP32, the MRF522 and the SD card, the second formt the PCM5102. The first regulator is permanently enabled, since the ESP32 needs permanent power, and both the SD card and the MRF522 can be powered down to a sufficiently low quiescent current. Only the second regulator is controlled by software.
+
+The PAM8403 is directly connected to the battery voltage, since it is favourable to power it with the highest possible voltage (up to 5V). I have experimented with using the 5V USB power as a supply, but it draws too little current to switch it on. Luckily, the power down mode of the PAM8403 is also sufficiently low, so no extra switch is required here.
+
+It is a bit difficult to measure the power consumption in standby mode precisely, because it switches between deep-sleep modes and very short bursts of RFID-activity (with only the ULP processor working in the ESP32). The average current seems to be around 1mA. Since the battery cannot be used to its full capacity, because the voltage is getting too low at some point, the lifetime is a bit below the theoretical 5000hours = 208days. Even if it were only half of that, it would be still nothing to worry about too much.
 
 ## Firmware
 
