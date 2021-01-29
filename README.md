@@ -79,6 +79,7 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
   * I did that to avoid the risk of needing a second order with only a few parts, if I would estimate wrongly...
 * Placement of some components was not smart:
   * The serial programming connector was originally planned as an upright connector, so it can be reached while the board is inside the box. This collided with the RFID board, so I changed it to an angled connector. This is a bit unhandy, because it requires taking the board out when using it. Also no big deal, since there is WiFi firmware upgarade...
+  * Some bigger components, especially the choce, are placed a bit too close to the edge, which makes assembly a bit hard.
 * I am not an electronics engineer, surely one can do a number of other things better, too!
 
 <p align="center">
@@ -102,6 +103,7 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 
 * The drilled holes for the sound to exit the box are too small, this degrades sound quality a bit unfortunately.
 * Assembly is slightly tedious due to the spacers between electronics and the lid, but thanks to Wifi connectivity this needs not be done often.
+* Also the box is a bit too small for the electronics board (or the board is to big). I had to grind some material off the walls on the inside to make it fit.
 
 ## Server setup for playlists and MP3 files
 
