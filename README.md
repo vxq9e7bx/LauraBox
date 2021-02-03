@@ -38,6 +38,8 @@ The PAM8403 is directly connected to the battery voltage, since it is favourable
 
 It is a bit difficult to measure the power consumption in standby mode precisely, because it switches between deep-sleep modes and very short bursts of RFID-activity (with only the ULP processor working in the ESP32). The average current seems to be around 1mA. Since the battery cannot be used to its full capacity, because the voltage is getting too low at some point, the lifetime is a bit below the theoretical 5000hours = 208days. Even if it were only half of that, it would be still nothing to worry about too much.
 
+Also to get down the power consumption, I have removed the LED from the MFRC522 board. It was always on even while the MFRC522 was put to standby and hence was unnecessarily drawing a significant amount of power.
+
 ## Firmware
 
 The firmware is based on Arduino and uses the following libraries:
