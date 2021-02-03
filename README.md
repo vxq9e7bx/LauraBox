@@ -82,6 +82,7 @@ Since the ULP can also run when the main CPU is active, it will keep monitoring 
 * Placement of some components was not smart:
   * The serial programming connector was originally planned as an upright connector, so it can be reached while the board is inside the box. This collided with the RFID board, so I changed it to an angled connector. This is a bit unhandy, because it requires taking the board out when using it. Also no big deal, since there is WiFi firmware upgarade...
   * Some bigger components, especially the choce, are placed a bit too close to the edge, which makes assembly a bit hard.
+* Keep the area below the WiFi antenna free (no ground, no signals). This is hard to achieve with a home-produced board with just two layers, but at least one could move the signals as close as possible to the edge of the area and remove the ground plane there, ideally with a real cut out in the board.
 * I am not an electronics engineer, surely one can do a number of other things better, too!
 
 <p align="center">
