@@ -1,13 +1,18 @@
 #!/usr/bin/python3
 
-# Change to playlist ID to download. Can be extracted from the URL: https://music.youtube.com/playlist?list=<PlaylistID>
-PlaylistID="PLL-zy2w69Cx8oIkQGi8-QNoLWdQ7lYLhZ"
-
+import sys
 from ytmusicapi import YTMusic
 import os
 
-api = YTMusic("headers_auth.json")
-#l = api.search("Eddi & Dän singen Kinderlieder a cappella")
+# Change to playlist ID to download. Can be extracted from the URL: https://music.youtube.com/playlist?list=<PlaylistID>
+if len(sys.argv) != 2 :
+  print("Playlist ID missing!")
+  sys.exit(1)
+
+PlaylistID=sys.argv[1]
+print("Playlist ID: "+PlaylistID)
+
+api = YTMusic(os.path.dirname(__file__)+"/headers_auth.json")
 
 l = api.get_playlist(PlaylistID)
 
