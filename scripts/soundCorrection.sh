@@ -1,6 +1,11 @@
 #!/bin/bash
 
-echo "Will apply high-pass filter to all files in the current directory:"
+VOL="0.1"
+if [ -n "$1" ]; then
+  VOL="$1"
+fi
+
+echo "Will ajdust volume to $VOL and apply high-pass filter to all files in the current directory:"
 pwd
 echo "Continue? (Ctrl+C to abort)"
 read || exit 1
@@ -15,7 +20,7 @@ for i in * ; do
   else
     mv "$i" "original/$i"
   fi
-  sox "original/$i" "$i" vol 0.1 treble 5 1000
+  sox "original/$i" "$i" vol $VOL treble 5 1000
 done
 echo "Done."
 
