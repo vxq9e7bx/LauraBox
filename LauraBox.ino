@@ -787,6 +787,9 @@ void runMainLoop(void *) {
   
       active_card_id = detected_card_id;
       String id = String(active_card_id, HEX);
+      while(id.length() < 8) {
+        id = "0"+id;
+      }
       Serial.print("Card detected: ");
       Serial.print(id);
       Serial.println(".");
