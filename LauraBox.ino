@@ -214,7 +214,7 @@ void updatePlaylists(void * parameter = nullptr) {
   
     httpManifest.get(url);
     int httpCode = httpManifest.responseStatusCode();
-    if(httpCode < 200 && httpCode > 299) {
+    if(httpCode < 200 || httpCode > 299) {
       Serial.print("Http error: ");
       Serial.println(httpCode);
       voiceMessage("error");
